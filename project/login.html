@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Sign in</title>
+		<link rel="stylesheet" href="styles.css" />
+	</head>
+	<body>
+		<div class="wrap">
+			<aside class="side-hero" aria-hidden="true">
+				<div class="hero-inner">
+					<h2 class="hero-title">Welcome Back</h2>
+					<p class="hero-sub">Sign in to continue to your account</p>
+				</div>
+			</aside>
+			<main class="card" aria-label="Sign in form">
+				<a class="brand" href="#">MyBrand</a>
+				<h1>Sign in</h1>
+				<p class="lead">Enter your credentials to access your dashboard.</p>
+				<form class="form" action="#" method="post">
+					<label class="field">
+						<span class="label-text">Email</span>
+						<input name="email" type="email" required placeholder="you@example.com" />
+					</label>
+
+					<label class="field password-field">
+						<span class="label-text">Password</span>
+						<div class="password-row">
+							<input name="password" type="password" required placeholder="••••••••" id="pwd" />
+							<button type="button" class="toggle" id="togglePwd" aria-pressed="false">Show</button>
+						</div>
+					</label>
+
+					<div class="form-row">
+						<label class="remember">
+							<input type="checkbox" name="remember" /> Remember me
+						</label>
+						<a class="forgot" href="#">Forgot?</a>
+					</div>
+
+					<button class="btn primary" type="submit">Sign in</button>
+				</form>
+
+				<p class="signup">Don't have an account? <a href="#">Create one</a></p>
+				<footer class="small">© <span id="year"></span> MyBrand</footer>
+			</main>
+		</div>
+
+		<script>
+			// small JS: toggle password visibility and fill year
+			document.getElementById('year').textContent = new Date().getFullYear();
+			const toggle = document.getElementById('togglePwd');
+			const pwd = document.getElementById('pwd');
+			toggle.addEventListener('click', () => {
+				const isHidden = pwd.type === 'password';
+				pwd.type = isHidden ? 'text' : 'password';
+				toggle.textContent = isHidden ? 'Hide' : 'Show';
+				toggle.setAttribute('aria-pressed', String(isHidden));
+			});
+		</script>
+	</body>
+</html>
+
