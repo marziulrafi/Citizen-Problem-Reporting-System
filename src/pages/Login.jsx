@@ -1,20 +1,17 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
 export default function Login() {
-  const { login, user } = useAuth();
+  const { login, isAuthLoading, user } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userType, setUserType] = useState("citizen");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user) {
       if (user.role === "admin") {
@@ -25,106 +22,34 @@ export default function Login() {
     }
   }, [user, navigate]);
 
-  // Load remembered credentials on mount
   useEffect(() => {
     const rememberedEmail = localStorage.getItem("rememberedEmail");
-    const rememberedUserType = localStorage.getItem("rememberedUserType");
-    
     if (rememberedEmail) {
       setEmail(rememberedEmail);
       setRememberMe(true);
-    }
-    if (rememberedUserType) {
-      setUserType(rememberedUserType);
     }
   }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!email) {
-      toast.error("Please enter your email");
+
+    if (!email || !password) {
+      toast.error("Please enter email and password");
       return;
     }
 
-    // For demo, password is not strictly validated
-    if (!password) {
-      toast.error("Please enter your password");
-      return;
+    if (rememberMe) {
+      localStorage.setItem("rememberedEmail", email);
+    } else {
+      localStorage.removeItem("rememberedEmail");
     }
 
-    setIsLoading(true);
+    const result = await login(email, password);
 
-    // Simulate API call delay
-    setTimeout(() => {
-      let isValid = false;
-      let userData = null;
-
-      if (userType === "citizen") {
-        // Citizen login - accept any valid email format for demo
-        if (email.includes("@") && (email.endsWith(".com") || email.endsWith(".bd") || email.endsWith(".org"))) {
-          isValid = true;
-          userData = {
-            email: email,
-            name: email.split("@")[0].charAt(0).toUpperCase() + email.split("@")[0].slice(1),
-            role: "citizen"
-          };
-        } else {
-          toast.error("Invalid email format");
-          setAttempts(prev => prev + 1);
-        }
-      } else {
-        // Admin login - only specific admin emails
-        const adminEmails = [
-          "admin@cprs.gov.bd",
-          "admin@example.com", 
-          "officer@cprs.gov.bd",
-          "admin@cprs.com",
-          "superadmin@cprs.gov.bd"
-        ];
-        
-        if (adminEmails.includes(email.toLowerCase())) {
-          isValid = true;
-          userData = {
-            email: email,
-            name: "Administrator",
-            role: "admin"
-          };
-        } else {
-          toast.error("Invalid admin credentials");
-          setAttempts(prev => prev + 1);
-        }
-      }
-
-      if (isValid && userData) {
-        // Save remember me preference
-        if (rememberMe) {
-          localStorage.setItem("rememberedEmail", email);
-          localStorage.setItem("rememberedUserType", userType);
-        } else {
-          localStorage.removeItem("rememberedEmail");
-          localStorage.removeItem("rememberedUserType");
-        }
-        
-        // Call login from AuthContext
-        login(email, userData);
-      } else if (attempts >= 2) {
-        toast.error("Too many failed attempts. Please try again later.");
-        setEmail("");
-        setPassword("");
-        setAttempts(0);
-      }
-      
-      setIsLoading(false);
-    }, 800);
+    if (!result.success) {
+      setPassword("");
+    }
   };
-
-  const demoAccounts = [
-    { type: "citizen", email: "rahim@example.com", name: "Rahim", role: "Citizen User", icon: "👤" },
-    { type: "citizen", email: "fatema@example.com", name: "Fatema", role: "Citizen User", icon: "👤" },
-    { type: "citizen", email: "karim@example.com", name: "Karim", role: "Citizen User", icon: "👤" },
-    { type: "admin", email: "admin@cprs.gov.bd", name: "Admin", role: "Administrator", icon: "👑" },
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 flex items-center justify-center py-12 px-4">
@@ -194,7 +119,7 @@ export default function Login() {
                         : "admin@cprs.gov.bd"
                     }
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    disabled={isLoading}
+                    disabled={isAuthLoading}
                   />
                 </div>
               </div>
@@ -213,7 +138,7 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    disabled={isLoading}
+                    disabled={isAuthLoading}
                   />
                   <button
                     type="button"
@@ -240,23 +165,14 @@ export default function Login() {
                   />
                   <span className="text-sm text-gray-600">Remember me</span>
                 </label>
-                {attempts > 0 && attempts < 3 && (
-                  <span className="text-xs text-red-500">
-                    {3 - attempts} attempts remaining
-                  </span>
-                )}
               </div>
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className={`w-full py-3 rounded-lg font-semibold text-white transition-all duration-300 ${
-                  userType === "citizen"
-                    ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:shadow-lg transform hover:scale-[1.02]"
-                    : "bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-lg transform hover:scale-[1.02]"
-                } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2`}
+                disabled={isAuthLoading}
+                className="w-full py-3 rounded-lg font-semibold text-white transition-all duration-300 bg-gradient-to-r from-green-500 to-emerald-500 hover:shadow-lg transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
               >
-                {isLoading ? (
+                {isAuthLoading ? (
                   <>
                     <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -273,50 +189,13 @@ export default function Login() {
               </button>
             </form>
 
-            {/* OR Divider */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">OR CONTINUE WITH</span>
-              </div>
-            </div>
-
-            {/* Demo Accounts */}
-            <div className="space-y-2">
-              <p className="text-xs text-center text-gray-500 mb-3">
-                Demo Accounts (Click to auto-fill)
-              </p>
-              {demoAccounts.map((account, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    setEmail(account.email);
-                    setUserType(account.type);
-                    setPassword("password123");
-                  }}
-                  className="w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-all duration-300 flex items-center gap-3 border border-gray-200 hover:border-green-300 hover:shadow-md"
-                >
-                  <span className="text-2xl">{account.icon}</span>
-                  <div className="flex-1 text-left">
-                    <div className="text-sm font-semibold text-gray-800">
-                      {account.role}
-                    </div>
-                    <div className="text-xs text-gray-500">{account.email}</div>
-                  </div>
-                  <span className="text-gray-400 group-hover:text-green-500">→</span>
-                </button>
-              ))}
-            </div>
-
             {/* Register Link */}
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Don't have an account?{" "}
-                <a href="#" className="text-green-600 hover:text-green-700 font-semibold transition-colors">
-                  Register your division
-                </a>
+                <Link to="/register" className="text-green-600 hover:text-green-700 font-semibold transition-colors">
+                  Register here
+                </Link>
               </p>
             </div>
           </div>

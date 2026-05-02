@@ -1,432 +1,367 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
+import { issueService } from "../api/issueService";
+import { useAuth } from "../context/AuthContext";
+
+const categories = [
+  { value: "road_transportation", label: "Roads" },
+  { value: "waste_management", label: "Waste Management" },
+  { value: "water_sanitation", label: "Water Supply" },
+  { value: "electricity", label: "Utilities" },
+  { value: "public_safety", label: "Safety" },
+  { value: "environmental", label: "Environment" },
+  { value: "other", label: "Other" },
+];
+
+const stepMeta = [
+  { title: "Basic Info", icon: "📝" },
+  { title: "Details", icon: "📖" },
+  { title: "Location", icon: "📍" },
+  { title: "Impact", icon: "⚙️" },
+  { title: "Review", icon: "✅" },
+];
 
 export default function Report() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const [formData, setFormData] = useState({
+  const [photos, setPhotos] = useState([]);
+  const [form, setForm] = useState({
     title: "",
     category: "",
     description: "",
-    location: "",
-    imageUrl: "https://via.placeholder.com/400x250?text=Issue+Image",
-    upvotes: 0,
-    status: "pending",
-    dateReported: new Date().toISOString().split('T')[0],
-    resolutionNotes: ""
+    priority: "medium",
+    address: "",
+    district: "",
+    upazila: "",
+    ward: "",
+    landmark: "",
+    severity: 3,
+    affectedPeople: 0,
+    isAnonymous: false,
   });
 
-  const categories = [
-    { value: "Roads", label: "Roads", icon: "🛣️", color: "from-orange-500 to-red-500" },
-    { value: "Sanitation", label: "Waste Management", icon: "🗑️", color: "from-green-500 to-emerald-500" },
-    { value: "Water Supply", label: "Water Supply", icon: "💧", color: "from-blue-500 to-cyan-500" },
-    { value: "Utilities", label: "Utilities", icon: "⚡", color: "from-yellow-500 to-amber-500" },
-    { value: "Traffic", label: "Traffic", icon: "🚦", color: "from-red-500 to-pink-500" },
-    { value: "Health", label: "Health", icon: "🏥", color: "from-teal-500 to-green-500" },
-    { value: "Infrastructure", label: "Infrastructure", icon: "🏗️", color: "from-purple-500 to-indigo-500" },
-    { value: "Environment", label: "Environment", icon: "🌿", color: "from-emerald-500 to-teal-500" },
-    { value: "Safety", label: "Safety", icon: "🛡️", color: "from-orange-500 to-red-500" },
-    { value: "Parks", label: "Parks & Recreation", icon: "🎠", color: "from-lime-500 to-green-500" }
-  ];
-
-  const locations = [
-    "Dhaka", "Chittagong", "Khulna", "Rajshahi", "Sylhet", 
-    "Barisal", "Rangpur", "Mymensingh", "Comilla", "Narayanganj"
-  ];
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const setField = (e) => {
+    const { name, value, type, checked } = e.target;
+    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
-  const handleNext = () => {
-    if (currentStep === 1 && !formData.title) {
-      toast.error("Please enter a title");
-      return;
+  const onPhotoChange = (e) => {
+    const selected = Array.from(e.target.files || []);
+    const imageFiles = selected.filter((file) => file.type.startsWith("image/"));
+    setPhotos(imageFiles.slice(0, 5));
+  };
+
+  const validateStep = () => {
+    if (step === 1 && (!form.title.trim() || !form.category)) {
+      toast.error("Title and category are required");
+      return false;
     }
-    if (currentStep === 2 && !formData.category) {
-      toast.error("Please select a category");
-      return;
+    if (step === 2 && form.description.trim().length < 20) {
+      toast.error("Description must be at least 20 characters");
+      return false;
     }
-    if (currentStep === 3 && !formData.description) {
-      toast.error("Please enter a description");
-      return;
+    if (step === 3 && (!form.address.trim() || !form.district.trim())) {
+      toast.error("Detailed location is required (address and district)");
+      return false;
     }
-    if (currentStep === 4 && !formData.location) {
-      toast.error("Please select a location");
-      return;
+    if (step === 4 && photos.length === 0) {
+      toast.error("At least one photo is required");
+      return false;
     }
-    setCurrentStep(prev => prev + 1);
+    return true;
+  };
+
+  const next = () => {
+    if (!validateStep()) return;
+    setStep((prev) => Math.min(5, prev + 1));
     window.scrollTo(0, 0);
   };
 
-  const handleBack = () => {
-    setCurrentStep(prev => prev - 1);
+  const back = () => {
+    setStep((prev) => Math.max(1, prev - 1));
     window.scrollTo(0, 0);
   };
 
-  const handleSubmit = async () => {
+  const submit = async () => {
     if (!user) {
-      toast.error("Please login to report an issue");
       navigate("/login");
       return;
     }
 
     setIsSubmitting(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      // Get existing problems from localStorage or use empty array
-      const existingProblems = JSON.parse(localStorage.getItem("problems")) || [];
-      
-      // Create new problem
-      const newProblem = {
-        id: Date.now().toString(),
-        ...formData,
-        citizenName: user.name || user.email.split("@")[0],
-        citizenEmail: user.email,
-        upvotes: 0,
-        status: "pending",
-        dateReported: new Date().toISOString().split('T')[0],
-        resolutionNotes: ""
+    try {
+      const payload = {
+        title: form.title.trim(),
+        category: form.category,
+        description: form.description.trim(),
+        priority: form.priority,
+        address: form.address.trim(),
+        district: form.district.trim(),
+        upazila: form.upazila.trim(),
+        ward: form.ward.trim(),
+        landmark: form.landmark.trim(),
+        severity: Number(form.severity),
+        affectedPeople: Number(form.affectedPeople),
+        isAnonymous: Boolean(form.isAnonymous),
       };
 
-      // Save to localStorage
-      existingProblems.push(newProblem);
-      localStorage.setItem("problems", JSON.stringify(existingProblems));
+      const fd = new FormData();
+      Object.entries(payload).forEach(([k, v]) => fd.append(k, String(v)));
+      photos.forEach((photo) => fd.append("media", photo));
 
-      toast.success("Issue reported successfully!");
+      const res = await issueService.createIssue(fd);
+      if (!res?.success) throw new Error(res?.message || "Failed to submit report");
+      toast.success("Issue reported successfully");
       navigate("/my-reports");
-    }, 1500);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message || "Failed to submit report");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Redirect if not logged in
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 flex items-center justify-center px-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
-          <div className="text-6xl mb-4">🔒</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Login Required</h2>
-          <p className="text-gray-600 mb-6">Please login to report a civic issue</p>
-          <button
-            onClick={() => navigate("/login")}
-            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-300"
-          >
-            Login Now →
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 py-12">
-      <div className="container mx-auto px-4 max-w-4xl">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-4">
-            Report an Issue
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Help us improve your neighborhood by reporting civic issues
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 py-10 px-4">
+      <div className="max-w-5xl mx-auto">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-green-700 via-green-600 to-emerald-700 text-white p-8 mb-6 shadow-xl">
+          <div className="absolute -top-10 -right-10 w-44 h-44 rounded-full bg-white/15" />
+          <div className="absolute -bottom-16 -left-10 w-52 h-52 rounded-full bg-white/10" />
+          <h1 className="text-3xl md:text-4xl font-bold mb-2 relative z-10">Report an Issue</h1>
+          <p className="text-green-100 relative z-10">Step {step} of 5 - Help improve your community with accurate reports.</p>
         </div>
 
-        {/* Progress Steps */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center">
-            {[1, 2, 3, 4, 5].map((step) => (
-              <div key={step} className="flex-1 relative">
-                <div className="flex flex-col items-center">
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6 md:p-8">
+          <div className="grid grid-cols-5 gap-2 mb-8">
+            {stepMeta.map((item, idx) => {
+              const n = idx + 1;
+              const active = step >= n;
+              return (
+                <div key={item.title} className="text-center">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${
-                      currentStep >= step
-                        ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg"
-                        : "bg-gray-300 text-gray-500"
+                    className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+                      active
+                        ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md"
+                        : "bg-gray-100 text-gray-500"
                     }`}
                   >
-                    {currentStep > step ? "✓" : step}
+                    {active ? item.icon : n}
                   </div>
-                  <div className="text-xs mt-2 text-gray-600 hidden sm:block">
-                    {step === 1 && "Title"}
-                    {step === 2 && "Category"}
-                    {step === 3 && "Description"}
-                    {step === 4 && "Location"}
-                    {step === 5 && "Review"}
-                  </div>
+                  <div className="text-xs mt-2 text-gray-600 hidden sm:block">{item.title}</div>
                 </div>
-                {step < 5 && (
-                  <div
-                    className={`absolute top-5 left-1/2 w-full h-0.5 ${
-                      currentStep > step ? "bg-green-500" : "bg-gray-300"
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
-          <div className="text-center mt-4">
-            <div className="inline-block px-4 py-2 bg-white rounded-full shadow-sm">
-              <span className="text-sm font-semibold text-gray-600">
-                Step {currentStep} of 5 • {Math.round((currentStep / 5) * 100)}% Complete
-              </span>
+
+        {step === 1 && (
+          <div className="space-y-4 animate-fadeIn">
+            <h2 className="text-xl font-bold text-gray-800">What happened?</h2>
+            <input
+              name="title"
+              value={form.title}
+              onChange={setField}
+              placeholder="Issue title"
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+            />
+            <select
+              name="category"
+              value={form.category}
+              onChange={setField}
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none bg-white"
+            >
+              <option value="">Select category</option>
+              {categories.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-4 animate-fadeIn">
+            <h2 className="text-xl font-bold text-gray-800">Describe it clearly</h2>
+            <textarea
+              name="description"
+              value={form.description}
+              onChange={setField}
+              rows={7}
+              placeholder="Describe the issue in detail..."
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none resize-none"
+            />
+            <select
+              name="priority"
+              value={form.priority}
+              onChange={setField}
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none bg-white"
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="emergency">Emergency</option>
+            </select>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="animate-fadeIn">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Add detailed location</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              name="address"
+              value={form.address}
+              onChange={setField}
+              placeholder="Address / street *"
+              className="md:col-span-2 border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+            />
+            <input
+              name="district"
+              value={form.district}
+              onChange={setField}
+              placeholder="District *"
+              className="border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+            />
+            <input
+              name="upazila"
+              value={form.upazila}
+              onChange={setField}
+              placeholder="Upazila / Thana"
+              className="border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+            />
+            <input
+              name="ward"
+              value={form.ward}
+              onChange={setField}
+              placeholder="Ward"
+              className="border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+            />
+            <input
+              name="landmark"
+              value={form.landmark}
+              onChange={setField}
+              placeholder="Nearby landmark"
+              className="border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+            />
+          </div>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="space-y-4 animate-fadeIn">
+            <h2 className="text-xl font-bold text-gray-800">Impact and privacy</h2>
+            <div>
+              <label className="block text-sm text-gray-600 mb-2">Severity (1-5)</label>
+              <input
+                type="number"
+                name="severity"
+                min="1"
+                max="5"
+                value={form.severity}
+                onChange={setField}
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+              />
             </div>
-          </div>
-        </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-2">Affected People</label>
+              <input
+                type="number"
+                name="affectedPeople"
+                min="0"
+                value={form.affectedPeople}
+                onChange={setField}
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none"
+              />
+            </div>
+            <label className="flex items-center gap-3 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                name="isAnonymous"
+                checked={form.isAnonymous}
+                onChange={setField}
+              />
+              Submit this report anonymously
+            </label>
 
-        {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-6 md:p-8">
-            {/* Step 1: Title */}
-            {currentStep === 1 && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="text-center">
-                  <div className="text-5xl mb-4">📝</div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">What's the issue?</h2>
-                  <p className="text-gray-600">Give your report a clear and concise title</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Issue Title *
-                  </label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleInputChange}
-                    placeholder="e.g., Large pothole on Main Street"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    autoFocus
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Be specific and descriptive (max 100 characters)
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Category */}
-            {currentStep === 2 && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="text-center">
-                  <div className="text-5xl mb-4">🏷️</div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Select Category</h2>
-                  <p className="text-gray-600">Choose the category that best describes the issue</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.value}
-                      onClick={() => setFormData(prev => ({ ...prev, category: cat.value }))}
-                      className={`p-4 rounded-xl border-2 transition-all duration-300 text-left ${
-                        formData.category === cat.value
-                          ? `border-green-500 bg-gradient-to-r ${cat.color} bg-opacity-10 shadow-lg`
-                          : "border-gray-200 hover:border-green-300"
-                      }`}
+            <div className="pt-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Upload Photos <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={onPhotoChange}
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-green-500 outline-none"
+              />
+              <p className="text-xs text-gray-500 mt-1">Add up to 5 images. At least one photo is required.</p>
+              {photos.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {photos.map((photo) => (
+                    <span
+                      key={`${photo.name}-${photo.lastModified}`}
+                      className="text-xs bg-green-50 text-green-700 border border-green-200 rounded-full px-3 py-1"
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{cat.icon}</span>
-                        <div>
-                          <div className="font-semibold text-gray-800">{cat.label}</div>
-                          <div className="text-xs text-gray-500">{cat.value}</div>
-                        </div>
-                        {formData.category === cat.value && (
-                          <span className="ml-auto text-green-500 text-xl">✓</span>
-                        )}
-                      </div>
-                    </button>
+                      {photo.name}
+                    </span>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Step 3: Description */}
-            {currentStep === 3 && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="text-center">
-                  <div className="text-5xl mb-4">📖</div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Describe the Issue</h2>
-                  <p className="text-gray-600">Provide detailed information about the problem</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description *
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    rows="6"
-                    placeholder="Describe what's happening, how long it's been going on, and any other relevant details..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all resize-none"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Be as detailed as possible to help authorities understand the severity
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Location */}
-            {currentStep === 4 && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="text-center">
-                  <div className="text-5xl mb-4">📍</div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Where is it located?</h2>
-                  <p className="text-gray-600">Select the city where the issue is occurring</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Location *
-                  </label>
-                  <select
-                    name="location"
-                    value={formData.location}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all bg-white"
-                  >
-                    <option value="">Select a location</option>
-                    {locations.map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">ℹ️</span>
-                    <div>
-                      <p className="text-sm text-blue-800 font-semibold">Note:</p>
-                      <p className="text-xs text-blue-700">
-                        For more precise location, you can add specific landmarks or street names in the description.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Step 5: Review */}
-            {currentStep === 5 && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="text-center">
-                  <div className="text-5xl mb-4">✅</div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Review Your Report</h2>
-                  <p className="text-gray-600">Please verify all information before submitting</p>
-                </div>
-
-                <div className="bg-gray-50 rounded-xl p-6 space-y-4">
-                  <div className="flex justify-between items-start pb-3 border-b border-gray-200">
-                    <span className="font-semibold text-gray-600">Title:</span>
-                    <span className="text-gray-800 text-right max-w-[60%]">{formData.title}</span>
-                  </div>
-                  <div className="flex justify-between items-start pb-3 border-b border-gray-200">
-                    <span className="font-semibold text-gray-600">Category:</span>
-                    <span className="text-gray-800">
-                      {categories.find(c => c.value === formData.category)?.icon} {formData.category}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-start pb-3 border-b border-gray-200">
-                    <span className="font-semibold text-gray-600">Description:</span>
-                    <span className="text-gray-800 text-right max-w-[60%]">{formData.description}</span>
-                  </div>
-                  <div className="flex justify-between items-start pb-3 border-b border-gray-200">
-                    <span className="font-semibold text-gray-600">Location:</span>
-                    <span className="text-gray-800">{formData.location}</span>
-                  </div>
-                  <div className="flex justify-between items-start">
-                    <span className="font-semibold text-gray-600">Reported By:</span>
-                    <span className="text-gray-800">{user.name || user.email}</span>
-                  </div>
-                </div>
-
-                <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">⚠️</span>
-                    <div>
-                      <p className="text-sm text-yellow-800 font-semibold">Before Submitting:</p>
-                      <ul className="text-xs text-yellow-700 mt-1 space-y-1">
-                        <li>• Ensure all information is accurate</li>
-                        <li>• False reports may be subject to review</li>
-                        <li>• You can track this report in "My Reports"</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Navigation Buttons */}
-            <div className="flex justify-between gap-4 mt-8 pt-6 border-t border-gray-200">
-              {currentStep > 1 && (
-                <button
-                  onClick={handleBack}
-                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all duration-300"
-                >
-                  ← Back
-                </button>
-              )}
-              
-              {currentStep < 5 ? (
-                <button
-                  onClick={handleNext}
-                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-300 ml-auto"
-                >
-                  Next →
-                </button>
-              ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-300 ml-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <span className="animate-spin">⏳</span>
-                      <span>Submitting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>📤</span>
-                      <span>Submit Report</span>
-                    </>
-                  )}
-                </button>
               )}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Help Section */}
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500">
-            Need help? Contact our support team at{" "}
-            <a href="mailto:support@cprs.gov.bd" className="text-green-600 hover:underline">
-              support@cprs.gov.bd
-            </a>
-          </p>
+        {step === 5 && (
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-2xl p-5 space-y-2 text-sm animate-fadeIn">
+            <p><span className="font-semibold">Title:</span> {form.title}</p>
+            <p><span className="font-semibold">Category:</span> {form.category}</p>
+            <p><span className="font-semibold">Description:</span> {form.description}</p>
+            <p><span className="font-semibold">Address:</span> {form.address}</p>
+            <p><span className="font-semibold">District:</span> {form.district}</p>
+            <p><span className="font-semibold">Upazila:</span> {form.upazila || "-"}</p>
+            <p><span className="font-semibold">Ward:</span> {form.ward || "-"}</p>
+            <p><span className="font-semibold">Landmark:</span> {form.landmark || "-"}</p>
+            <p><span className="font-semibold">Severity:</span> {form.severity}</p>
+            <p><span className="font-semibold">Affected people:</span> {form.affectedPeople}</p>
+            <p><span className="font-semibold">Photos:</span> {photos.length}</p>
+          </div>
+        )}
+
+        <div className="flex justify-between mt-8">
+          {step > 1 ? (
+            <button onClick={back} className="px-5 py-2.5 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium">
+              ← Back
+            </button>
+          ) : <div />}
+          {step < 5 ? (
+            <button
+              onClick={next}
+              className="px-5 py-2.5 rounded-xl text-white font-semibold bg-gradient-to-r from-green-500 to-emerald-500 hover:shadow-lg"
+            >
+              Next →
+            </button>
+          ) : (
+            <button
+              onClick={submit}
+              disabled={isSubmitting}
+              className="px-6 py-2.5 rounded-xl text-white font-semibold bg-gradient-to-r from-green-500 to-emerald-500 hover:shadow-lg disabled:opacity-60"
+            >
+              {isSubmitting ? "Submitting..." : "Submit Report"}
+            </button>
+          )}
         </div>
       </div>
 
       <style>{`
         @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
+        .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
       `}</style>
+      </div>
     </div>
   );
 }
