@@ -1,4 +1,3 @@
-// Import images at the top of data.js
 import brokenRoad from "../assets/broken-road.jpg";
 import garbageDumping from "../assets/garbage-dumping.jpg";
 import streetLight from "../assets/street-light.jpg";
@@ -24,7 +23,7 @@ export const problems = [
     location: "Dhaka",
     dateReported: "2026-01-01",
     upvotes: 3,
-    imageUrl: brokenRoad, // Use imported variable
+    imageUrl: brokenRoad,
     resolutionNotes: "",
   },
   {
@@ -38,7 +37,7 @@ export const problems = [
     location: "Chittagong",
     dateReported: "2026-01-02",
     upvotes: 7,
-    imageUrl: garbageDumping, // Use imported variable
+    imageUrl: garbageDumping,
     resolutionNotes: "Cleaning scheduled for tomorrow",
   },
   {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { issueService } from "../api/issueService";
 import toast from "react-hot-toast";
 
 export default function MyReports() {
@@ -17,20 +18,72 @@ export default function MyReports() {
       return;
     }
 
-    // Load reports from localStorage
-    const storedProblems = JSON.parse(localStorage.getItem("problems")) || [];
-    
-    // Filter reports by current user's email
-    const userReports = storedProblems.filter(
-      (p) => p.citizenEmail === user.email
-    );
-    
-    // Sort by date (newest first)
-    userReports.sort((a, b) => new Date(b.dateReported) - new Date(a.dateReported));
-    
-    setMyReports(userReports);
-    setLoading(false);
+    const fetchUserReports = async () => {
+      try {
+        setLoading(true);
+        const response = await issueService.getIssues({
+          page: 1,
+          limit: 100,
+        });
+
+        if (response.success && response.data && response.data.issues) {
+          const apiReports = response.data.issues.map(issue => ({
+            id: issue._id,
+            issueId: issue.issueId,
+            title: issue.title,
+            description: issue.description,
+            category: mapCategoryFromAPI(issue.category),
+            status: mapStatusFromAPI(issue.status),
+            location: issue.address || "Dhaka",
+            dateReported: new Date(issue.createdAt).toISOString().split('T')[0],
+            upvotes: issue.upvoteCount || 0,
+            resolutionNotes: issue.resolutionNote || "",
+            citizenName: issue.reportedBy?.name || "Anonymous",
+            citizenEmail: user.email,
+          }));
+
+          setMyReports(apiReports);
+        } else {
+          setMyReports([]);
+        }
+      } catch (err) {
+        console.error("Error fetching reports:", err);
+        toast.error("Failed to fetch your reports");
+        setMyReports([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserReports();
   }, [user, navigate]);
+
+  const mapCategoryFromAPI = (apiCategory) => {
+    const categoryMap = {
+      "road_transportation": "Roads",
+      "water_sanitation": "Sanitation",
+      "electricity": "Utilities",
+      "waste_management": "Sanitation",
+      "public_safety": "Safety",
+      "environmental": "Environment",
+      "other": "Parks",
+    };
+    return categoryMap[apiCategory] || "Other";
+  };
+
+  const mapStatusFromAPI = (apiStatus) => {
+    const statusMap = {
+      "submitted": "pending",
+      "verified": "pending",
+      "assigned": "in-progress",
+      "in_progress": "in-progress",
+      "pending_review": "in-progress",
+      "resolved": "resolved",
+      "closed": "resolved",
+      "reopened": "pending",
+    };
+    return statusMap[apiStatus] || "pending";
+  };
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -70,10 +123,8 @@ export default function MyReports() {
   };
 
   const filteredReports = myReports.filter(report => {
-    // Apply status filter
     if (filter !== "all" && report.status !== filter) return false;
     
-    // Apply search filter
     if (search) {
       const searchLower = search.toLowerCase();
       return (
@@ -94,7 +145,7 @@ export default function MyReports() {
   };
 
   if (!user) {
-    return null; // Will redirect via useEffect
+    return null;
   }
 
   return (

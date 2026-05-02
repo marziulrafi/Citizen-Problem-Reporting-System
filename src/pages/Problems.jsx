@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
-import { problems as data } from "../data/data";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { issueService } from "../api/issueService";
+import toast from "react-hot-toast";
+
+const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+const toAssetUrl = (url) => (url?.startsWith("http") ? url : `${API_ORIGIN}${url || ""}`);
 
 export default function Problems() {
   const [search, setSearch] = useState("");
@@ -10,16 +14,84 @@ export default function Problems() {
   const [sortBy, setSortBy] = useState("latest");
   const [filteredProblems, setFilteredProblems] = useState([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [problems, setProblems] = useState([]);
   const { user } = useAuth();
 
-  // Extract unique categories from problems
-  const categories = ["all", ...new Set(data.map(p => p.category))];
+  const categories = ["all", ...new Set(problems.map((p) => p.category).filter(Boolean))];
   const statuses = ["all", "pending", "in-progress", "resolved"];
 
   useEffect(() => {
-    let filtered = [...data];
+    const fetchIssues = async () => {
+      try {
+        setLoading(true);
+        const response = await issueService.getPublicFeed(1, 50);
+        
+        if (response.success && response.data && response.data.issues) {
+          const apiIssues = response.data.issues.map(issue => ({
+            id: issue._id,
+            issueId: issue.issueId,
+            title: issue.title,
+            description: issue.description,
+            category: mapCategoryFromAPI(issue.category),
+            status: mapStatusFromAPI(issue.status),
+            location: issue.address || "Dhaka",
+            upvotes: issue.upvoteCount || 0,
+            dateReported: new Date(issue.createdAt).toISOString().split('T')[0],
+            imageUrl:
+              issue.media && issue.media.length > 0
+                ? toAssetUrl(issue.media[0].url)
+                : "https://via.placeholder.com/400x250?text=Issue",
+            citizenName: issue.reportedBy?.name || "Anonymous",
+            resolutionNotes: issue.resolutionNote || "",
+          }));
+          
+          setProblems(apiIssues);
+        } else {
+          setProblems([]);
+        }
+      } catch (err) {
+        console.error("Error fetching issues:", err);
+        toast.error("Failed to fetch issues");
+        setProblems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Search filter
+    fetchIssues();
+  }, []);
+
+  const mapCategoryFromAPI = (apiCategory) => {
+    const categoryMap = {
+      "road_transportation": "Roads",
+      "water_sanitation": "Sanitation",
+      "electricity": "Utilities",
+      "waste_management": "Sanitation",
+      "public_safety": "Safety",
+      "environmental": "Environment",
+      "other": "Parks",
+    };
+    return categoryMap[apiCategory] || "Other";
+  };
+
+  const mapStatusFromAPI = (apiStatus) => {
+    const statusMap = {
+      "submitted": "pending",
+      "verified": "pending",
+      "assigned": "in-progress",
+      "in_progress": "in-progress",
+      "pending_review": "in-progress",
+      "resolved": "resolved",
+      "closed": "resolved",
+      "reopened": "pending",
+    };
+    return statusMap[apiStatus] || "pending";
+  };
+
+  useEffect(() => {
+    let filtered = [...problems];
+
     if (search) {
       filtered = filtered.filter(p =>
         p.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -28,17 +100,14 @@ export default function Problems() {
       );
     }
 
-    // Category filter
     if (selectedCategory !== "all") {
       filtered = filtered.filter(p => p.category === selectedCategory);
     }
 
-    // Status filter
     if (selectedStatus !== "all") {
       filtered = filtered.filter(p => p.status === selectedStatus);
     }
 
-    // Sorting
     switch (sortBy) {
       case "latest":
         filtered.sort((a, b) => new Date(b.dateReported) - new Date(a.dateReported));
@@ -57,7 +126,7 @@ export default function Problems() {
     }
 
     setFilteredProblems(filtered);
-  }, [search, selectedCategory, selectedStatus, sortBy]);
+  }, [search, selectedCategory, selectedStatus, sortBy, problems]);
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -111,13 +180,13 @@ export default function Problems() {
           </p>
           <div className="mt-6 flex flex-wrap gap-2 justify-center">
             <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
-              📊 {data.length} Total Reports
+              📊 {problems.length} Total Reports
             </span>
             <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
-              ✅ {data.filter(p => p.status === "resolved").length} Resolved
+              ✅ {problems.filter((p) => p.status === "resolved").length} Resolved
             </span>
             <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
-              🔄 {data.filter(p => p.status === "in-progress").length} In Progress
+              🔄 {problems.filter((p) => p.status === "in-progress").length} In Progress
             </span>
           </div>
         </div>
@@ -306,7 +375,7 @@ export default function Problems() {
         <div className="flex justify-between items-center">
           <p className="text-gray-600">
             Showing <span className="font-bold text-green-600">{filteredProblems.length}</span> of{" "}
-            <span className="font-bold">{data.length}</span> reports
+            <span className="font-bold">{problems.length}</span> reports
           </p>
           {user && (
             <Link

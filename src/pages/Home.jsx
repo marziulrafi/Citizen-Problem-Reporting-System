@@ -1,10 +1,25 @@
 import { Link } from "react-router-dom";
-import { problems } from "../data/data";
+import { useEffect, useState } from "react";
+import { issueService } from "../api/issueService";
+
+const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+const toAssetUrl = (url) => (url?.startsWith("http") ? url : `${API_ORIGIN}${url || ""}`);
 
 export default function Home() {
-  const recentProblems = [...problems]
-    .sort((a, b) => new Date(b.dateReported) - new Date(a.dateReported))
-    .slice(0, 3);
+  const [recentProblems, setRecentProblems] = useState([]);
+
+  useEffect(() => {
+    const loadRecent = async () => {
+      try {
+        const response = await issueService.getPublicFeed(1, 3);
+        const issues = response?.data?.issues || [];
+        setRecentProblems(issues);
+      } catch {
+        setRecentProblems([]);
+      }
+    };
+    loadRecent();
+  }, []);
 
   const stats = {
     total: 12450,
@@ -130,9 +145,9 @@ export default function Home() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {recentProblems.map((problem) => (
-            <div key={problem.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
+            <div key={problem._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
               <img
-                src={problem.imageUrl}
+                src={problem.media?.[0]?.url ? toAssetUrl(problem.media[0].url) : "https://via.placeholder.com/400x250?text=Issue"}
                 alt={problem.title}
                 className="w-full h-48 object-cover"
               />
@@ -140,18 +155,18 @@ export default function Home() {
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-semibold text-lg">{problem.title}</h3>
                   <span className={`text-xs px-2 py-1 rounded-full ${
-                    problem.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    problem.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                    ["submitted", "verified", "reopened"].includes(problem.status) ? 'bg-yellow-100 text-yellow-800' :
+                    ["assigned", "in_progress", "pending_review"].includes(problem.status) ? 'bg-blue-100 text-blue-800' :
                     'bg-green-100 text-green-800'
                   }`}>
                     {problem.status}
                   </span>
                 </div>
-                <p className="text-gray-600 text-sm mb-2">{problem.location}</p>
+                <p className="text-gray-600 text-sm mb-2">{problem.address || "Dhaka"}</p>
                 <p className="text-gray-500 text-sm">{problem.description}</p>
                 <div className="mt-3 flex justify-between items-center">
-                  <span className="text-sm text-gray-500">⬆️ {problem.upvotes} upvotes</span>
-                  <Link to={`/problem/${problem.id}`} className="text-green-600 text-sm hover:underline">
+                  <span className="text-sm text-gray-500">⬆️ {problem.upvoteCount || 0} upvotes</span>
+                  <Link to={`/problem/${problem._id}`} className="text-green-600 text-sm hover:underline">
                     View Details →
                   </Link>
                 </div>

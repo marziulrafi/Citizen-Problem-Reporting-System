@@ -1,12 +1,31 @@
 import { useParams } from "react-router-dom";
-import { problems } from "../data/data";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { issueService } from "../api/issueService";
+import toast from "react-hot-toast";
 
 export default function ProblemDetails() {
   const { id } = useParams();
-  const problem = problems.find((p) => p.id === id);
+  const [problem, setProblem] = useState(null);
+  const [votes, setVotes] = useState(0);
 
-  const [votes, setVotes] = useState(problem.upvotes);
+  useEffect(() => {
+    const loadIssue = async () => {
+      try {
+        const response = await issueService.getIssueById(id);
+        const issue = response?.data;
+        if (!issue) return;
+        setProblem(issue);
+        setVotes(issue.upvoteCount || 0);
+      } catch (err) {
+        toast.error(err.response?.data?.message || "Failed to load issue details");
+      }
+    };
+    loadIssue();
+  }, [id]);
+
+  if (!problem) {
+    return <div className="p-4">Loading...</div>;
+  }
 
   return (
     <div className="p-4">
@@ -14,7 +33,14 @@ export default function ProblemDetails() {
       <p>{problem.description}</p>
 
       <button
-        onClick={() => setVotes(votes + 1)}
+        onClick={async () => {
+          try {
+            const response = await issueService.upvoteIssue(id);
+            setVotes(response?.data?.upvoteCount ?? votes);
+          } catch (err) {
+            toast.error(err.response?.data?.message || "Unable to upvote");
+          }
+        }}
         className="bg-green-500 text-white px-3"
       >
         Upvote ({votes})
