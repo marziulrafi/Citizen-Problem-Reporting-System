@@ -21,10 +21,7 @@ export default function MyReports() {
     const fetchUserReports = async () => {
       try {
         setLoading(true);
-        const response = await issueService.getIssues({
-          page: 1,
-          limit: 100,
-        });
+        const response = await issueService.getMyIssues(1, 100);
 
         if (response.success && response.data && response.data.issues) {
           const apiReports = response.data.issues.map(issue => ({
@@ -334,28 +331,15 @@ export default function MyReports() {
                     key={report.id}
                     className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transform hover:scale-[1.02] transition-all duration-300"
                   >
-                    {/* Image Section */}
-                    <div className="relative h-48 overflow-hidden">
-                      <img
-                        src={report.imageUrl || "https://via.placeholder.com/400x250?text=Issue+Image"}
-                        alt={report.title}
-                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-                      />
-                      {/* Status Badge */}
-                      <div className="absolute top-4 right-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-sm ${statusStyle.className}`}>
-                          {statusStyle.icon} {getStatusText(report.status)}
-                        </span>
-                      </div>
-                      {/* Category Badge */}
-                      <div className="absolute bottom-4 left-4">
-                        <span className="px-3 py-1 bg-black/50 backdrop-blur-sm rounded-full text-xs text-white">
-                          {getCategoryIcon(report.category)} {report.category}
-                        </span>
-                      </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-6 pt-6 pb-3 border-b border-gray-100 bg-gradient-to-r from-green-50/80 to-gray-50">
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-sm">
+                        {getCategoryIcon(report.category)} {report.category}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-sm ${statusStyle.className}`}>
+                        {statusStyle.icon} {getStatusText(report.status)}
+                      </span>
                     </div>
 
-                    {/* Content */}
                     <div className="p-6">
                       <div className="flex justify-between items-start mb-3">
                         <h3 className="font-bold text-xl text-gray-800 line-clamp-1">

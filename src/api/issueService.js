@@ -1,24 +1,20 @@
 import api from "./api";
 
 export const issueService = {
-  getPublicFeed: async (page = 1, limit = 10, category = null, lat = null, lng = null) => {
+  getPublicFeed: async (page = 1, limit = 10, category = null) => {
     const params = { page, limit };
     if (category) params.category = category;
-    if (lat && lng) {
-      params.lat = lat;
-      params.lng = lng;
-      params.radius = 10;
-    }
     const response = await api.get("/issues/public", { params });
     return response.data;
   },
 
+  getMyIssues: async (page = 1, limit = 100) => {
+    const response = await api.get("/issues/my", { params: { page, limit } });
+    return response.data;
+  },
+  
   getIssues: async (filters = {}) => {
-    const params = {
-      page: filters.page || 1,
-      limit: filters.limit || 10,
-      ...filters,
-    };
+    const params = { page: filters.page || 1, limit: filters.limit || 20, ...filters };
     const response = await api.get("/issues", { params });
     return response.data;
   },
@@ -30,29 +26,13 @@ export const issueService = {
 
   createIssue: async (formData) => {
     const response = await api.post("/issues", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
+      headers: { "Content-Type": "multipart/form-data" },
     });
     return response.data;
   },
 
   updateIssueStatus: async (issueId, statusData) => {
     const response = await api.put(`/issues/${issueId}/status`, statusData);
-    return response.data;
-  },
-
-  updateIssueStatusWithProof: async (issueId, formData) => {
-    const response = await api.put(`/issues/${issueId}/status`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-    return response.data;
-  },
-
-  assignIssue: async (issueId, assignedTo) => {
-    const response = await api.put(`/issues/${issueId}/assign`, { assignedTo });
     return response.data;
   },
 

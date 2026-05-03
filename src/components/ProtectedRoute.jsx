@@ -2,6 +2,13 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Loader from "./Loader";
 
+function rolesMatch(userRole, requiredRole) {
+  return (
+    String(userRole ?? "").trim().toLowerCase() ===
+    String(requiredRole ?? "").trim().toLowerCase()
+  );
+}
+
 export default function ProtectedRoute({ children, requiredRole }) {
   const { user, loading } = useAuth();
 
@@ -13,7 +20,7 @@ export default function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && user.role !== requiredRole) {
+  if (requiredRole && !rolesMatch(user.role, requiredRole)) {
     return <Navigate to="/" replace />;
   }
 

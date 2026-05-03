@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, isAdminRole } from "../context/AuthContext";
 import { useState, useEffect } from "react";
 
 export default function Navbar() {
@@ -25,18 +25,6 @@ export default function Navbar() {
     { path: "/problems", label: "Problems", icon: "📋" },
     { path: "/report", label: "Report", icon: "📝" },
   ];
-
-  const protectedLinks = [
-    { path: "/my-reports", label: "My Reports", icon: "📊", role: "citizen" },
-  ];
-
-  const adminLinks = [
-    { path: "/admin", label: "Admin", icon: "⚙️", role: "admin" },
-  ];
-
-  const isActive = (path) => {
-    return location.pathname === path;
-  };
 
   return (
     <>
@@ -102,19 +90,19 @@ export default function Navbar() {
                 </NavLink>
               )}
 
-              {user?.role === "admin" && (
+              {user && isAdminRole(user) && (
                 <NavLink
-                  to="/admin"
+                  to="/dashboard"
                   className={({ isActive }) =>
                     `px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
                       isActive
-                        ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg"
+                        ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg"
                         : "text-gray-300 hover:text-white hover:bg-white/10"
                     }`
                   }
                 >
-                  <span>⚙️</span>
-                  <span>Admin Dashboard</span>
+                  <span>📊</span>
+                  <span>Dashboard</span>
                 </NavLink>
               )}
 
@@ -217,20 +205,20 @@ export default function Navbar() {
                 </NavLink>
               )}
 
-              {user?.role === "admin" && (
+              {user && isAdminRole(user) && (
                 <NavLink
-                  to="/admin"
+                  to="/dashboard"
                   onClick={() => setIsMenuOpen(false)}
                   className={({ isActive }) =>
                     `px-4 py-3 rounded-lg text-base font-medium transition-all duration-300 flex items-center gap-3 ${
                       isActive
-                        ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                        ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white"
                         : "text-gray-300 hover:text-white hover:bg-white/10"
                     }`
                   }
                 >
-                  <span className="text-xl">⚙️</span>
-                  <span>Admin Dashboard</span>
+                  <span className="text-xl">📊</span>
+                  <span>Dashboard</span>
                 </NavLink>
               )}
 

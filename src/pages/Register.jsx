@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
 
 export default function Register() {
-  const navigate = useNavigate();
   const { register, isAuthLoading } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -49,9 +48,6 @@ export default function Register() {
 
     const result = await register(payload);
     if (!result.success) return;
-
-    toast.success("Registration successful!");
-    navigate("/");
   };
 
   return (

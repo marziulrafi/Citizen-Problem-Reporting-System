@@ -1,3 +1,10 @@
+export const toAssetUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("http")) return url;
+  const base = import.meta.env.VITE_API_ORIGIN || "";
+  return `${base}${url}`;
+};
+
 export const formatDate = (dateString) => {
   const date = new Date(dateString);
   return date.toLocaleDateString("en-US", {

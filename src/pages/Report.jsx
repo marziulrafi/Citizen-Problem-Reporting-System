@@ -67,10 +67,6 @@ export default function Report() {
       toast.error("Detailed location is required (address and district)");
       return false;
     }
-    if (step === 4 && photos.length === 0) {
-      toast.error("At least one photo is required");
-      return false;
-    }
     return true;
   };
 
@@ -287,7 +283,7 @@ export default function Report() {
 
             <div className="pt-2">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Upload Photos <span className="text-red-500">*</span>
+                Upload Photos <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <input
                 type="file"
@@ -296,7 +292,7 @@ export default function Report() {
                 onChange={onPhotoChange}
                 className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-green-500 outline-none"
               />
-              <p className="text-xs text-gray-500 mt-1">Add up to 5 images. At least one photo is required.</p>
+              <p className="text-xs text-gray-500 mt-1">You may attach up to 5 images for evidence.</p>
               {photos.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {photos.map((photo) => (

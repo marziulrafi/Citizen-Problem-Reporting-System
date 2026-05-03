@@ -12,6 +12,31 @@ export const useAuth = () => {
   return context;
 };
 
+export const normalizeUser = (u) => {
+  if (!u || typeof u !== "object") return null;
+  const id = u._id ?? u.id;
+  if (id == null || id === "") return null;
+  const email = typeof u.email === "string" ? u.email.trim() : "";
+  if (!email) return null;
+  const rawRole = String(u.role ?? "").trim().toLowerCase();
+  const role = rawRole === "admin" ? "admin" : "citizen";
+  return {
+    _id: id,
+    id: String(id),
+    name: u.name,
+    email,
+    role,
+  };
+};
+
+export const isAdminRole = (userOrRole) => {
+  const r =
+    typeof userOrRole === "string"
+      ? userOrRole
+      : userOrRole?.role;
+  return String(r ?? "").trim().toLowerCase() === "admin";
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -19,46 +44,63 @@ export const AuthProvider = ({ children }) => {
   const navigateRef = useRef(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("cprs_user");
-    const token = localStorage.getItem("cprs_token");
-    
-    if (storedUser && token) {
-      try {
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-      } catch (err) {
-        localStorage.removeItem("cprs_user");
-        localStorage.removeItem("cprs_token");
+    let cancelled = false;
+    const bootstrap = async () => {
+      const token = localStorage.getItem("cprs_token");
+      if (!token) {
+        setLoading(false);
+        return;
       }
-    }
-    setLoading(false);
+      try {
+        const res = await authService.getMe();
+        if (cancelled) return;
+        if (res.success && res.data?.user) {
+          const u = normalizeUser(res.data.user);
+          if (u) {
+            setUser(u);
+            localStorage.setItem("cprs_user", JSON.stringify(u));
+          } else {
+            throw new Error("Invalid user payload");
+          }
+        } else {
+          throw new Error(res.message || "Session invalid");
+        }
+      } catch {
+        if (!cancelled) {
+          localStorage.removeItem("cprs_token");
+          localStorage.removeItem("cprs_user");
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loginWithAPI = async (email, password) => {
     try {
       setIsAuthLoading(true);
       const response = await authService.login(email, password);
-
-      const token = response?.data?.token || response?.token;
-      const userData = response?.data?.user || response?.data;
+      const data = response?.data;
+      const token = data?.token;
+      const userData = normalizeUser(data?.user);
 
       if (response.success && token && userData) {
         setUser(userData);
         localStorage.setItem("cprs_token", token);
         localStorage.setItem("cprs_user", JSON.stringify(userData));
         toast.success(`Welcome back, ${userData.name || email.split("@")[0]}!`);
-        
-        if (navigateRef.current) {
-          if (userData.role === "admin") {
-            navigateRef.current("/admin");
-          } else {
-            navigateRef.current("/");
-          }
-        }
-        return { success: true };
-      } else {
-        throw new Error(response.message || "Login failed");
+
+        const dest = isAdminRole(userData) ? "/dashboard" : "/";
+        navigateRef.current?.(dest);
+
+        return { success: true, user: userData };
       }
+      throw new Error(response.message || "Login failed");
     } catch (err) {
       const errorMsg = err.response?.data?.message || err.message || "Login failed";
       toast.error(errorMsg);
@@ -68,31 +110,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const registerWithAPI = async (userData) => {
+  const registerWithAPI = async (payload) => {
     try {
       setIsAuthLoading(true);
-      const response = await authService.register(userData);
+      const response = await authService.register(payload);
+      const data = response?.data;
+      const token = data?.token;
+      const nextUser = normalizeUser(data?.user);
 
-      const token = response?.data?.token || response?.token;
-      const user = response?.data?.user || response?.data;
-
-      if (response.success && token && user) {
-        setUser(user);
+      if (response.success && token && nextUser) {
+        setUser(nextUser);
         localStorage.setItem("cprs_token", token);
-        localStorage.setItem("cprs_user", JSON.stringify(user));
+        localStorage.setItem("cprs_user", JSON.stringify(nextUser));
         toast.success("Account created successfully!");
-        
-        if (navigateRef.current) {
-          if (user.role === "admin") {
-            navigateRef.current("/admin");
-          } else {
-            navigateRef.current("/");
-          }
-        }
-        return { success: true };
-      } else {
-        throw new Error(response.message || "Registration failed");
+
+        const dest = isAdminRole(nextUser) ? "/dashboard" : "/";
+        navigateRef.current?.(dest);
+
+        return { success: true, user: nextUser };
       }
+      throw new Error(response.message || "Registration failed");
     } catch (err) {
       const errorMsg = err.response?.data?.message || err.message || "Registration failed";
       toast.error(errorMsg);
@@ -107,7 +144,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem("cprs_user");
     localStorage.removeItem("cprs_token");
     toast.success("Logged out successfully");
-    
+
     if (navigateRef.current) {
       navigateRef.current("/login");
     }
@@ -118,15 +155,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      login: loginWithAPI,
-      register: registerWithAPI,
-      logout,
-      loading,
-      isAuthLoading,
-      setNavigate,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login: loginWithAPI,
+        register: registerWithAPI,
+        logout,
+        loading,
+        isAuthLoading,
+        setNavigate,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
