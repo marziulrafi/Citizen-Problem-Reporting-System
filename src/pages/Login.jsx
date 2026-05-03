@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, isAdminRole } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
 export default function Login() {
@@ -13,13 +13,8 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      if (user.role === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/");
-      }
-    }
+    if (!user) return;
+    navigate(isAdminRole(user) ? "/dashboard" : "/", { replace: true });
   }, [user, navigate]);
 
   useEffect(() => {
@@ -48,6 +43,11 @@ export default function Login() {
 
     if (!result.success) {
       setPassword("");
+      return;
+    }
+
+    if (result.user) {
+      navigate(isAdminRole(result.user) ? "/dashboard" : "/", { replace: true });
     }
   };
 
@@ -91,7 +91,7 @@ export default function Login() {
                 onClick={() => setUserType("admin")}
                 className={`flex-1 py-2 rounded-md font-semibold transition-all duration-300 ${
                   userType === "admin"
-                    ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md"
+                    ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md"
                     : "text-gray-600 hover:text-gray-800"
                 }`}
               >

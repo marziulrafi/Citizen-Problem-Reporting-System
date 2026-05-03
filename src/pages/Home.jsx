@@ -2,29 +2,27 @@ import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { issueService } from "../api/issueService";
 
-const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
-const toAssetUrl = (url) => (url?.startsWith("http") ? url : `${API_ORIGIN}${url || ""}`);
-
 export default function Home() {
   const [recentProblems, setRecentProblems] = useState([]);
+  const [stats, setStats] = useState({ total: 0, resolved: 0 });
 
   useEffect(() => {
     const loadRecent = async () => {
       try {
         const response = await issueService.getPublicFeed(1, 3);
         const issues = response?.data?.issues || [];
+        const pagination = response?.data?.pagination || {};
         setRecentProblems(issues);
+        setStats({
+          total: pagination.total || issues.length,
+          resolved: issues.filter(i => i.status === "resolved" || i.status === "closed").length,
+        });
       } catch {
         setRecentProblems([]);
       }
     };
     loadRecent();
   }, []);
-
-  const stats = {
-    total: 12450,
-    resolutionRate: 89,
-  };
 
   const categories = [
     { name: "Roads", icon: "🛣️", count: 3420, color: "bg-blue-100" },
@@ -68,14 +66,15 @@ export default function Home() {
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12 max-w-2xl">
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-              <div className="text-3xl font-bold">{stats.total.toLocaleString()}+</div>
+              <div className="text-3xl font-bold">{stats.total > 0 ? stats.total.toLocaleString() + "+" : "—"}</div>
               <div className="text-sm">Issues Reported</div>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-              <div className="text-3xl font-bold">{stats.resolutionRate}%</div>
+              <div className="text-3xl font-bold">{stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) + "%" : "—"}</div>
               <div className="text-sm">Resolution Rate</div>
             </div>
           </div>
+
         </div>
       </section>
 
@@ -146,15 +145,10 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {recentProblems.map((problem) => (
             <div key={problem._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
-              <img
-                src={problem.media?.[0]?.url ? toAssetUrl(problem.media[0].url) : "https://via.placeholder.com/400x250?text=Issue"}
-                alt={problem.title}
-                className="w-full h-48 object-cover"
-              />
               <div className="p-4">
-                <div className="flex justify-between items-start mb-2">
+                <div className="flex justify-between items-start mb-2 gap-2">
                   <h3 className="font-semibold text-lg">{problem.title}</h3>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
+                  <span className={`text-xs px-2 py-1 rounded-full shrink-0 ${
                     ["submitted", "verified", "reopened"].includes(problem.status) ? 'bg-yellow-100 text-yellow-800' :
                     ["assigned", "in_progress", "pending_review"].includes(problem.status) ? 'bg-blue-100 text-blue-800' :
                     'bg-green-100 text-green-800'

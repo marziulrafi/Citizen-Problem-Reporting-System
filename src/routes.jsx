@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import Problems from "./pages/Problems";
 import Report from "./pages/Report";
@@ -38,13 +38,14 @@ export default function AppRoutes() {
       />
 
       <Route
-        path="/admin"
+        path="/dashboard"
         element={
           <ProtectedRoute requiredRole="admin">
             <AdminDashboard />
           </ProtectedRoute>
         }
       />
+      <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

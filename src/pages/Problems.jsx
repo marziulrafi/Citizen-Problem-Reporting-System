@@ -3,10 +3,6 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { issueService } from "../api/issueService";
 import toast from "react-hot-toast";
-
-const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
-const toAssetUrl = (url) => (url?.startsWith("http") ? url : `${API_ORIGIN}${url || ""}`);
-
 export default function Problems() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -38,10 +34,6 @@ export default function Problems() {
             location: issue.address || "Dhaka",
             upvotes: issue.upvoteCount || 0,
             dateReported: new Date(issue.createdAt).toISOString().split('T')[0],
-            imageUrl:
-              issue.media && issue.media.length > 0
-                ? toAssetUrl(issue.media[0].url)
-                : "https://via.placeholder.com/400x250?text=Issue",
             citizenName: issue.reportedBy?.name || "Anonymous",
             resolutionNotes: issue.resolutionNote || "",
           }));
@@ -414,30 +406,15 @@ export default function Problems() {
                 key={problem.id}
                 className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
               >
-                {/* Image */}
-                <div className="relative h-48 overflow-hidden">
-                  <img
-                    src={problem.imageUrl}
-                    alt={problem.title}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                  />
-                  {/* Status Badge */}
-                  <div className="absolute top-4 right-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-sm ${getStatusBadge(problem.status)}`}>
-                      {getStatusIcon(problem.status)} {problem.status}
-                    </span>
-                  </div>
-                  {/* Category Badge */}
-                  <div className="absolute bottom-4 left-4">
-                    <span className="px-3 py-1 bg-black/50 backdrop-blur-sm rounded-full text-xs text-white">
-                      {getCategoryIcon(problem.category)} {problem.category}
-                    </span>
-                  </div>
-                  {/* Gradient Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="flex flex-wrap items-center justify-between gap-2 px-6 pt-6 pb-3 border-b border-gray-100 bg-gradient-to-r from-green-50/80 to-gray-50">
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-sm">
+                    {getCategoryIcon(problem.category)} {problem.category}
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusBadge(problem.status)}`}>
+                    {getStatusIcon(problem.status)} {problem.status}
+                  </span>
                 </div>
 
-                {/* Content */}
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="font-bold text-xl text-gray-800 line-clamp-1">
