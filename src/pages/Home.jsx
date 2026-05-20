@@ -5,18 +5,33 @@ import { issueService } from "../api/issueService";
 export default function Home() {
   const [recentProblems, setRecentProblems] = useState([]);
   const [stats, setStats] = useState({ total: 0, resolved: 0 });
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     const loadRecent = async () => {
       try {
-        const response = await issueService.getPublicFeed(1, 3);
-        const issues = response?.data?.issues || [];
-        const pagination = response?.data?.pagination || {};
+        const [feedRes, catRes] = await Promise.all([
+          issueService.getPublicFeed(1, 3),
+          issueService.getCategoryStats(),
+        ]);
+        const issues = feedRes?.data?.issues || [];
         setRecentProblems(issues);
         setStats({
-          total: pagination.total || issues.length,
-          resolved: issues.filter(i => i.status === "resolved" || i.status === "closed").length,
+          total: catRes?.data?.totalIssues || feedRes?.data?.pagination?.total || 0,
+          resolved: catRes?.data?.resolvedIssues || 0,
         });
+        const catMap = catRes?.data?.categories || {};
+        const display = [
+          { key: "road_transportation", name: "Roads", icon: "🛣️", color: "bg-blue-100" },
+          { key: "waste_management", name: "Waste", icon: "🗑️", color: "bg-green-100" },
+          { key: "water_sanitation", name: "Water", icon: "💧", color: "bg-cyan-100" },
+          { key: "electricity", name: "Electricity", icon: "⚡", color: "bg-yellow-100" },
+          { key: "public_safety", name: "Safety", icon: "🛡️", color: "bg-purple-100" },
+          { key: "environmental", name: "Environment", icon: "🌿", color: "bg-emerald-100" },
+        ];
+        setCategories(
+          display.map((c) => ({ ...c, count: catMap[c.key] || 0 })).filter((c) => c.count > 0)
+        );
       } catch {
         setRecentProblems([]);
       }
@@ -24,63 +39,46 @@ export default function Home() {
     loadRecent();
   }, []);
 
-  const categories = [
-    { name: "Roads", icon: "🛣️", count: 3420, color: "bg-blue-100" },
-    { name: "Waste Management", icon: "🗑️", count: 2850, color: "bg-green-100" },
-    { name: "Water Supply", icon: "💧", count: 1890, color: "bg-cyan-100" },
-    { name: "Utilities", icon: "⚡", count: 1650, color: "bg-yellow-100" },
-    { name: "Traffic", icon: "🚦", count: 1420, color: "bg-red-100" },
-    { name: "Safety", icon: "🛡️", count: 1220, color: "bg-purple-100" },
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-r from-green-700 to-green-900 text-white">
-        <div className="absolute inset-0 bg-black opacity-40"></div>
-        <div className="relative container mx-auto px-4 py-16 md:py-24">
-          <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+    <div className="min-h-screen bg-slate-50">
+      <section className="relative bg-gradient-to-br from-emerald-800 via-green-800 to-teal-900 text-white overflow-hidden">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.04\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-80" />
+        <div className="relative container mx-auto px-4 py-20 md:py-28 max-w-6xl">
+          <div className="max-w-2xl">
+            <p className="text-emerald-200 text-sm font-semibold uppercase tracking-wider mb-3">Government of Bangladesh</p>
+            <h1 className="text-4xl md:text-6xl font-bold mb-5 tracking-tight leading-tight">
               Report. Track. Resolve.
             </h1>
-            <p className="text-lg md:text-xl mb-8 text-gray-100">
-              Bangladesh's civic issue reporting platform. Empowering citizens to improve 
-              their neighborhoods through real-time communication with local authorities.
+            <p className="text-lg md:text-xl mb-8 text-emerald-50/90 leading-relaxed">
+              Connect with city authorities and dedicated worker teams — transparent civic issue management from report to resolution.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link
-                to="/report"
-                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold transition"
-              >
+              <Link to="/report" className="btn-primary bg-amber-500 hover:from-amber-500 hover:to-orange-500 shadow-lg">
                 Report an Issue
               </Link>
-              <Link
-                to="/my-reports"
-                className="bg-white text-green-700 hover:bg-gray-100 px-6 py-3 rounded-lg font-semibold transition"
-              >
+              <Link to="/my-reports" className="btn-secondary bg-white/95 text-emerald-800 border-0 hover:bg-white">
                 Track My Report
               </Link>
             </div>
           </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12 max-w-2xl">
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-              <div className="text-3xl font-bold">{stats.total > 0 ? stats.total.toLocaleString() + "+" : "—"}</div>
-              <div className="text-sm">Issues Reported</div>
+          <div className="grid grid-cols-2 gap-4 mt-14 max-w-md">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/20">
+              <div className="text-3xl font-bold tabular-nums">{stats.total > 0 ? `${stats.total}+` : "—"}</div>
+              <div className="text-sm text-emerald-100">Issues reported</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-              <div className="text-3xl font-bold">{stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) + "%" : "—"}</div>
-              <div className="text-sm">Resolution Rate</div>
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/20">
+              <div className="text-3xl font-bold tabular-nums">
+                {stats.total > 0 ? `${Math.round((stats.resolved / stats.total) * 100)}%` : "—"}
+              </div>
+              <div className="text-sm text-emerald-100">Resolution rate</div>
             </div>
           </div>
-
         </div>
       </section>
 
       {/* How It Works Section */}
-      <section className="container mx-auto px-4 py-16">
-        <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
+      <section className="container mx-auto px-4 py-16 max-w-6xl">
+        <h2 className="text-3xl font-bold text-center mb-12 text-slate-900">How It Works</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="text-center">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -122,7 +120,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {categories.map((cat) => (
               <div
-                key={cat.name}
+                key={cat.key}
                 className={`${cat.color} rounded-lg p-4 text-center hover:shadow-lg transition cursor-pointer`}
               >
                 <div className="text-3xl mb-2">{cat.icon}</div>
