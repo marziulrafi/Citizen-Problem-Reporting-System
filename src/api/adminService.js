@@ -17,4 +17,14 @@ export const adminService = {
     const response = await api.get("/admin/dashboard");
     return response.data;
   },
+
+  updateUserRole: async (userId, role) => {
+    const response = await api.put(`/admin/users/${userId}/role`, { role });
+    return response.data;
+  },
+
+  getWorkers: async () => {
+    const response = await api.get("/admin/workers");
+    return response.data;
+  },
 };
