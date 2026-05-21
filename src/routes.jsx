@@ -5,6 +5,9 @@ import Report from "./pages/Report";
 import ProblemDetails from "./pages/ProblemDetails";
 import MyReports from "./pages/MyReports";
 import AdminDashboard from "./pages/AdminDashboard";
+import AuthorityDashboard from "./pages/AuthorityDashboard";
+import FieldWorkerDashboard from "./pages/FieldWorkerDashboard";
+import ModeratorDashboard from "./pages/ModeratorDashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -22,7 +25,7 @@ export default function AppRoutes() {
       <Route
         path="/report"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["citizen", "admin"]}>
             <Report />
           </ProtectedRoute>
         }
@@ -31,7 +34,7 @@ export default function AppRoutes() {
       <Route
         path="/my-reports"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["citizen", "admin"]}>
             <MyReports />
           </ProtectedRoute>
         }
@@ -42,6 +45,30 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute requiredRole="admin">
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/authority"
+        element={
+          <ProtectedRoute requiredRole="authority">
+            <AuthorityDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/worker"
+        element={
+          <ProtectedRoute requiredRole="field_worker">
+            <FieldWorkerDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/moderator"
+        element={
+          <ProtectedRoute requiredRole="moderator">
+            <ModeratorDashboard />
           </ProtectedRoute>
         }
       />
