@@ -205,7 +205,7 @@ export default function AdminDashboard() {
 
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-green-700 to-emerald-700 text-white">
+                <thead className="bg-gradient-to-red from-green-700 to-emerald-700 text-white">
                   <tr>
                     <th className="text-left p-4">Issue</th>
                     <th className="text-left p-4 hidden md:table-cell">Category</th>
