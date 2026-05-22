@@ -1,9 +1,13 @@
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { issueService } from "../api/issueService";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import toast from "react-hot-toast";
 import { toAssetUrl } from "../utils/helpers";
+import AssignedTeam from "../components/AssignedTeam";
+import IssueComments from "../components/IssueComments";
+import IssueWorkActions from "../components/IssueWorkActions";
+import IssueLocationMap from "../components/IssueLocationMap";
 
 const STATUS_LABELS = {
   submitted: { label: "Submitted", color: "bg-yellow-100 text-yellow-800 ring-yellow-200", icon: "📋" },
@@ -56,16 +60,35 @@ export default function ProblemDetails() {
   const [loading, setLoading] = useState(true);
   const [upvoting, setUpvoting] = useState(false);
   const [hasUpvoted, setHasUpvoted] = useState(false);
+  const [history, setHistory] = useState([]);
+
+  const reloadIssue = async (updated) => {
+    if (updated) {
+      setProblem(updated);
+      setHasUpvoted(Boolean(updated.viewerHasUpvoted));
+      return;
+    }
+    const response = await issueService.getIssueById(id);
+    const issue = response?.data;
+    if (issue) {
+      setProblem(issue);
+      setHasUpvoted(Boolean(issue.viewerHasUpvoted));
+    }
+  };
 
   useEffect(() => {
     const loadIssue = async () => {
       try {
         setLoading(true);
-        const response = await issueService.getIssueById(id);
+        const [response, historyRes] = await Promise.all([
+          issueService.getIssueById(id),
+          issueService.getIssueHistory(id).catch(() => null),
+        ]);
         const issue = response?.data;
         if (!issue) throw new Error("Issue not found");
         setProblem(issue);
         setHasUpvoted(Boolean(issue.viewerHasUpvoted));
+        setHistory(historyRes?.data?.history || []);
       } catch (err) {
         toast.error(err.response?.data?.message || "Failed to load issue details");
       } finally {
@@ -361,6 +384,8 @@ export default function ProblemDetails() {
           </div>
         </section>
 
+        <IssueWorkActions issue={problem} user={user} onUpdated={reloadIssue} />
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8 space-y-6">
             <article className="rounded-2xl bg-white p-6 md:p-8 shadow-lg shadow-gray-200/60 ring-1 ring-gray-100">
@@ -412,11 +437,11 @@ export default function ProblemDetails() {
                     </>
                   )}
                 </dl>
-                <div className="mt-6 rounded-xl border border-dashed border-gray-300 bg-gray-50/80 px-4 py-6 text-center">
-                  <p className="text-xs text-gray-500 leading-relaxed">
-                    Map preview is not available in CPRS yet. Use the address above for navigation apps or share this page
-                    with local authorities.
-                  </p>
+                <div className="mt-6 relative z-0 isolate">
+                  <IssueLocationMap issue={problem} height="220px" />
+                  {problem.zoneLabel && (
+                    <p className="text-xs text-emerald-700 mt-2 font-medium">Dhaka zone: {problem.zoneLabel}</p>
+                  )}
                 </div>
               </div>
             </section>
@@ -453,6 +478,54 @@ export default function ProblemDetails() {
               </section>
             )}
 
+            {(problem.repairProof?.length > 0) && (
+              <section className="rounded-2xl bg-white p-6 shadow-lg ring-1 ring-gray-100">
+                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <span>🔧</span> Field repair proof
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {problem.repairProof.map((p, idx) => (
+                    <a
+                      key={idx}
+                      href={toAssetUrl(p.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block aspect-square rounded-xl overflow-hidden ring-1 ring-gray-200 hover:ring-green-400"
+                    >
+                      <img src={toAssetUrl(p.url)} alt="" className="w-full h-full object-cover" />
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <IssueComments issueId={problem._id} />
+
+            {history.length > 0 && (
+              <section className="rounded-2xl bg-white p-6 md:p-8 shadow-lg ring-1 ring-gray-100">
+                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <span>📜</span> Issue timeline
+                </h2>
+                <ol className="space-y-4 border-l-2 border-green-200 pl-4">
+                  {history.map((h) => (
+                    <li key={h._id} className="relative">
+                      <span className="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-green-500 ring-4 ring-green-100" />
+                      <p className="font-semibold text-gray-800 capitalize">{h.action?.replace(/_/g, " ")}</p>
+                      {h.fromStatus && h.toStatus && (
+                        <p className="text-sm text-gray-600">
+                          {h.fromStatus.replace(/_/g, " ")} → {h.toStatus.replace(/_/g, " ")}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">
+                        {h.performedBy?.name || "System"} ·{" "}
+                        {new Date(h.createdAt).toLocaleString()}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
+
             {["resolved", "closed"].includes(problem.status) && problem.resolutionNote && (
               <div className="rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200/80 p-6 md:p-8 shadow-md">
                 <div className="flex items-start gap-3">
@@ -477,6 +550,8 @@ export default function ProblemDetails() {
           </div>
 
           <aside className="lg:col-span-4 space-y-5 lg:sticky lg:top-24">
+            <AssignedTeam issue={problem} />
+
             <div className="rounded-2xl bg-white p-6 shadow-lg shadow-gray-200/60 ring-1 ring-gray-100">
               <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Community</p>
               <div className="flex items-baseline gap-2 mb-1">
@@ -524,14 +599,22 @@ export default function ProblemDetails() {
             <div className="rounded-2xl bg-gray-900 text-white p-6 shadow-xl">
               <p className="text-xs font-bold uppercase tracking-wider text-green-400 mb-3">Next steps</p>
               <ul className="text-sm text-gray-300 space-y-2 mb-5 leading-snug">
-                <li className="flex gap-2">
-                  <span className="text-green-400 shrink-0">•</span>
-                  Share this page if others are affected.
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-green-400 shrink-0">•</span>
-                  Watch status updates as authorities progress.
-                </li>
+                {problem.status === "submitted" && (
+                  <li className="flex gap-2"><span className="text-green-400 shrink-0">•</span>A moderator will verify your report.</li>
+                )}
+                {problem.status === "verified" && (
+                  <li className="flex gap-2"><span className="text-green-400 shrink-0">•</span>Authority will assign field workers soon.</li>
+                )}
+                {["assigned", "in_progress"].includes(problem.status) && (
+                  <li className="flex gap-2"><span className="text-green-400 shrink-0">•</span>Field team is working on your issue.</li>
+                )}
+                {problem.status === "pending_review" && (
+                  <li className="flex gap-2"><span className="text-green-400 shrink-0">•</span>Work completed — awaiting final approval.</li>
+                )}
+                {["resolved", "closed"].includes(problem.status) && (
+                  <li className="flex gap-2"><span className="text-green-400 shrink-0">•</span>This issue has been resolved.</li>
+                )}
+                <li className="flex gap-2"><span className="text-green-400 shrink-0">•</span>Check notifications for status updates.</li>
               </ul>
               <Link
                 to="/problems"

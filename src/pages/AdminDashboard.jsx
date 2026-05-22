@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { adminService } from "../api/adminService";
 import { issueService } from "../api/issueService";
+import { ROLES, ROLE_LABELS } from "../utils/roles";
 
 const ALL_STATUSES = [
   "submitted", "verified", "assigned", "in_progress",
@@ -76,7 +77,7 @@ export default function AdminDashboard() {
     if (activeTab === "users" && users.length === 0) {
       loadUsers();
     }
-  }, [activeTab]);
+  }, [activeTab, users.length]);
 
   const filteredIssues = useMemo(() => {
     if (statusFilter === "all") return issues;
@@ -93,6 +94,21 @@ export default function AdminDashboard() {
       toast.error(err.response?.data?.message || "Status update failed");
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const handleRoleChange = async (userId, role) => {
+    try {
+      const res = await adminService.updateUserRole(userId, role);
+      toast.success(res.message || "Role updated");
+      const updated = res?.data?.user;
+      if (updated) {
+        setUsers((prev) =>
+          prev.map((u) => (String(u._id) === String(userId) ? { ...u, ...updated } : u))
+        );
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update role");
     }
   };
 
@@ -205,7 +221,7 @@ export default function AdminDashboard() {
 
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-red from-green-700 to-emerald-700 text-white">
+                <thead className="bg-gradient-to-r from-green-700 to-emerald-700 text-white">
                   <tr>
                     <th className="text-left p-4">Issue</th>
                     <th className="text-left p-4 hidden md:table-cell">Category</th>
@@ -305,9 +321,17 @@ export default function AdminDashboard() {
                         </td>
                         <td className="p-4 hidden md:table-cell text-gray-600 text-sm">{u.email}</td>
                         <td className="p-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.role === "admin" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                            {u.role === "admin" ? "👑 Admin" : "👤 Citizen"}
-                          </span>
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleRoleChange(u._id, e.target.value)}
+                            className="border border-gray-200 rounded-lg px-2 py-1 text-xs"
+                          >
+                            {ROLES.map((r) => (
+                              <option key={r} value={r}>
+                                {ROLE_LABELS[r]}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>

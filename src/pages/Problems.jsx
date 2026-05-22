@@ -1,58 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import { issueService } from "../api/issueService";
 import toast from "react-hot-toast";
+
 export default function Problems() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [sortBy, setSortBy] = useState("latest");
-  const [filteredProblems, setFilteredProblems] = useState([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [problems, setProblems] = useState([]);
   const { user } = useAuth();
-
-  const categories = ["all", ...new Set(problems.map((p) => p.category).filter(Boolean))];
-  const statuses = ["all", "pending", "in-progress", "resolved"];
-
-  useEffect(() => {
-    const fetchIssues = async () => {
-      try {
-        setLoading(true);
-        const response = await issueService.getPublicFeed(1, 50);
-        
-        if (response.success && response.data && response.data.issues) {
-          const apiIssues = response.data.issues.map(issue => ({
-            id: issue._id,
-            issueId: issue.issueId,
-            title: issue.title,
-            description: issue.description,
-            category: mapCategoryFromAPI(issue.category),
-            status: mapStatusFromAPI(issue.status),
-            location: issue.address || "Dhaka",
-            upvotes: issue.upvoteCount || 0,
-            dateReported: new Date(issue.createdAt).toISOString().split('T')[0],
-            citizenName: issue.reportedBy?.name || "Anonymous",
-            resolutionNotes: issue.resolutionNote || "",
-          }));
-          
-          setProblems(apiIssues);
-        } else {
-          setProblems([]);
-        }
-      } catch (err) {
-        console.error("Error fetching issues:", err);
-        toast.error("Failed to fetch issues");
-        setProblems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchIssues();
-  }, []);
 
   const mapCategoryFromAPI = (apiCategory) => {
     const categoryMap = {
@@ -81,11 +40,49 @@ export default function Problems() {
     return statusMap[apiStatus] || "pending";
   };
 
+  const categories = ["all", ...new Set(problems.map((p) => p.category).filter(Boolean))];
+  const statuses = ["all", "pending", "in-progress", "resolved"];
+
   useEffect(() => {
+    const fetchIssues = async () => {
+      try {
+        const response = await issueService.getPublicFeed(1, 50);
+        
+        if (response.success && response.data && response.data.issues) {
+          const apiIssues = response.data.issues.map((issue) => ({
+            id: issue._id,
+            issueId: issue.issueId,
+            title: issue.title,
+            description: issue.description,
+            category: mapCategoryFromAPI(issue.category),
+            status: mapStatusFromAPI(issue.status),
+            location: issue.address || issue.zoneLabel || "Dhaka",
+            zoneLabel: issue.zoneLabel,
+            upvotes: issue.upvoteCount || 0,
+            dateReported: new Date(issue.createdAt).toISOString().split("T")[0],
+            citizenName: issue.reportedBy?.name || "Anonymous",
+            resolutionNotes: issue.resolutionNote || "",
+          }));
+
+          setProblems(apiIssues);
+        } else {
+          setProblems([]);
+        }
+      } catch (err) {
+        console.error("Error fetching issues:", err);
+        toast.error("Failed to fetch issues");
+        setProblems([]);
+      }
+    };
+
+    fetchIssues();
+  }, []);
+
+  const filteredProblems = useMemo(() => {
     let filtered = [...problems];
 
     if (search) {
-      filtered = filtered.filter(p =>
+      filtered = filtered.filter((p) =>
         p.title.toLowerCase().includes(search.toLowerCase()) ||
         p.description.toLowerCase().includes(search.toLowerCase()) ||
         p.location.toLowerCase().includes(search.toLowerCase())
@@ -93,11 +90,11 @@ export default function Problems() {
     }
 
     if (selectedCategory !== "all") {
-      filtered = filtered.filter(p => p.category === selectedCategory);
+      filtered = filtered.filter((p) => p.category === selectedCategory);
     }
 
     if (selectedStatus !== "all") {
-      filtered = filtered.filter(p => p.status === selectedStatus);
+      filtered = filtered.filter((p) => p.status === selectedStatus);
     }
 
     switch (sortBy) {
@@ -117,7 +114,7 @@ export default function Problems() {
         break;
     }
 
-    setFilteredProblems(filtered);
+    return filtered;
   }, [search, selectedCategory, selectedStatus, sortBy, problems]);
 
   const getStatusBadge = (status) => {
@@ -164,11 +161,9 @@ export default function Problems() {
         </div>
         
         <div className="relative container mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-yellow-200 bg-clip-text text-transparent">
-            Civic Issues Dashboard
-          </h1>
-          <p className="text-lg md:text-xl text-gray-100 max-w-3xl mx-auto">
-            Browse, search, and track all reported civic issues across Bangladesh
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">Dhaka Civic Issues</h1>
+          <p className="text-lg md:text-xl text-emerald-100 max-w-3xl mx-auto">
+            Browse reported problems across 12 Dhaka zones — track status from submission to resolution
           </p>
           <div className="mt-6 flex flex-wrap gap-2 justify-center">
             <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
@@ -362,26 +357,20 @@ export default function Problems() {
         </div>
       </section>
 
-      {/* Results Count */}
       <div className="container mx-auto px-4 mt-8">
-        <div className="flex justify-between items-center">
-          <p className="text-gray-600">
-            Showing <span className="font-bold text-green-600">{filteredProblems.length}</span> of{" "}
-            <span className="font-bold">{problems.length}</span> reports
+        <div className="flex flex-wrap justify-between items-center gap-4">
+          <p className="text-slate-600">
+            Showing <span className="font-bold text-emerald-600">{filteredProblems.length}</span> of{" "}
+            <span className="font-bold">{problems.length}</span> reports in Dhaka
           </p>
           {user && (
-            <Link
-              to="/report"
-              className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2"
-            >
-              <span>📝</span>
-              <span>Report New Issue</span>
+            <Link to="/report" className="btn-primary text-sm py-2">
+              Report issue
             </Link>
           )}
         </div>
       </div>
 
-      {/* Problems Grid */}
       <section className="container mx-auto px-4 py-8">
         {filteredProblems.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl shadow-lg">
