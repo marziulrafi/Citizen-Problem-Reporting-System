@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import { issueService } from "../api/issueService";
+import { STATUS_LABELS, CATEGORY_LABELS } from "../constants/issues";
 import toast from "react-hot-toast";
 
 export default function MyReports() {
@@ -24,15 +25,18 @@ export default function MyReports() {
         const response = await issueService.getMyIssues(1, 100);
 
         if (response.success && response.data && response.data.issues) {
-          const apiReports = response.data.issues.map(issue => ({
+          const apiReports = response.data.issues.map((issue) => ({
             id: issue._id,
             issueId: issue.issueId,
             title: issue.title,
             description: issue.description,
-            category: mapCategoryFromAPI(issue.category),
-            status: mapStatusFromAPI(issue.status),
+            category: issue.category,
+            categoryLabel: CATEGORY_LABELS[issue.category]?.label || issue.category,
+            status: issue.status,
+            statusLabel: STATUS_LABELS[issue.status]?.label || issue.status,
+            assignedWorkers: issue.assignedWorkers || [],
             location: issue.address || "Dhaka",
-            dateReported: new Date(issue.createdAt).toISOString().split('T')[0],
+            dateReported: new Date(issue.createdAt).toISOString().split("T")[0],
             upvotes: issue.upvoteCount || 0,
             resolutionNotes: issue.resolutionNote || "",
             citizenName: issue.reportedBy?.name || "Anonymous",
@@ -55,73 +59,19 @@ export default function MyReports() {
     fetchUserReports();
   }, [user, navigate]);
 
-  const mapCategoryFromAPI = (apiCategory) => {
-    const categoryMap = {
-      "road_transportation": "Roads",
-      "water_sanitation": "Sanitation",
-      "electricity": "Utilities",
-      "waste_management": "Sanitation",
-      "public_safety": "Safety",
-      "environmental": "Environment",
-      "other": "Parks",
-    };
-    return categoryMap[apiCategory] || "Other";
-  };
-
-  const mapStatusFromAPI = (apiStatus) => {
-    const statusMap = {
-      "submitted": "pending",
-      "verified": "pending",
-      "assigned": "in-progress",
-      "in_progress": "in-progress",
-      "pending_review": "in-progress",
-      "resolved": "resolved",
-      "closed": "resolved",
-      "reopened": "pending",
-    };
-    return statusMap[apiStatus] || "pending";
-  };
 
   const getStatusBadge = (status) => {
-    const styles = {
-      pending: "bg-yellow-500/20 text-yellow-700 border-yellow-500/30",
-      "in-progress": "bg-blue-500/20 text-blue-700 border-blue-500/30",
-      resolved: "bg-green-500/20 text-green-700 border-green-500/30"
-    };
-    const icons = {
-      pending: "⏳",
-      "in-progress": "🔄",
-      resolved: "✅"
-    };
+    const info = STATUS_LABELS[status] || { label: status, color: "bg-gray-100 text-gray-700", icon: "📋" };
     return {
-      className: styles[status] || styles.pending,
-      icon: icons[status] || "📋"
+      className: `${info.color} border border-gray-200/50`,
+      icon: info.icon,
+      label: info.label,
     };
-  };
-
-  const getCategoryIcon = (category) => {
-    const icons = {
-      "Roads": "🛣️",
-      "Sanitation": "🗑️",
-      "Utilities": "⚡",
-      "Water Supply": "💧",
-      "Traffic": "🚦",
-      "Health": "🏥",
-      "Infrastructure": "🏗️",
-      "Environment": "🌿",
-      "Safety": "🛡️",
-      "Parks": "🎠"
-    };
-    return icons[category] || "📌";
-  };
-
-  const getStatusText = (status) => {
-    return status === "in-progress" ? "In Progress" : status.charAt(0).toUpperCase() + status.slice(1);
   };
 
   const filteredReports = myReports.filter(report => {
     if (filter !== "all" && report.status !== filter) return false;
-    
+
     if (search) {
       const searchLower = search.toLowerCase();
       return (
@@ -130,15 +80,17 @@ export default function MyReports() {
         report.location.toLowerCase().includes(searchLower)
       );
     }
-    
+
     return true;
   });
 
   const stats = {
     total: myReports.length,
-    pending: myReports.filter(r => r.status === "pending").length,
-    inProgress: myReports.filter(r => r.status === "in-progress").length,
-    resolved: myReports.filter(r => r.status === "resolved").length
+    pending: myReports.filter((r) => ["submitted", "verified"].includes(r.status)).length,
+    inProgress: myReports.filter((r) =>
+      ["assigned", "in_progress", "pending_review", "reopened"].includes(r.status)
+    ).length,
+    resolved: myReports.filter((r) => ["resolved", "closed"].includes(r.status)).length,
   };
 
   if (!user) {
@@ -153,7 +105,7 @@ export default function MyReports() {
           <div className="absolute top-10 left-10 w-64 h-64 bg-white rounded-full blur-3xl animate-pulse"></div>
           <div className="absolute bottom-10 right-10 w-80 h-80 bg-yellow-400 rounded-full blur-3xl animate-pulse delay-1000"></div>
         </div>
-        
+
         <div className="relative container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
@@ -173,7 +125,7 @@ export default function MyReports() {
             </Link>
           </div>
         </div>
-        
+
         {/* Curved Bottom */}
         <div className="absolute bottom-0 left-0 right-0">
           <svg viewBox="0 0 1440 60" className="w-full h-12 text-gray-100" preserveAspectRatio="none">
@@ -239,41 +191,37 @@ export default function MyReports() {
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setFilter("all")}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                filter === "all"
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${filter === "all"
                   ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
+                }`}
             >
               All Reports ({stats.total})
             </button>
             <button
               onClick={() => setFilter("pending")}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                filter === "pending"
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${filter === "pending"
                   ? "bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
+                }`}
             >
               ⏳ Pending ({stats.pending})
             </button>
             <button
               onClick={() => setFilter("in-progress")}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                filter === "in-progress"
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${filter === "in-progress"
                   ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
+                }`}
             >
               🔄 In Progress ({stats.inProgress})
             </button>
             <button
               onClick={() => setFilter("resolved")}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                filter === "resolved"
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${filter === "resolved"
                   ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
+                }`}
             >
               ✅ Resolved ({stats.resolved})
             </button>
@@ -292,7 +240,7 @@ export default function MyReports() {
             <div className="text-6xl mb-4">📭</div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">No reports found</h3>
             <p className="text-gray-600 mb-6">
-              {search || filter !== "all" 
+              {search || filter !== "all"
                 ? "Try adjusting your search or filters"
                 : "You haven't reported any issues yet"}
             </p>
@@ -321,7 +269,7 @@ export default function MyReports() {
             <div className="text-sm text-gray-500 mb-2">
               Showing {filteredReports.length} of {myReports.length} reports
             </div>
-            
+
             {/* Reports Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredReports.map((report) => {
@@ -333,10 +281,10 @@ export default function MyReports() {
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 px-6 pt-6 pb-3 border-b border-gray-100 bg-gradient-to-r from-green-50/80 to-gray-50">
                       <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-sm">
-                        {getCategoryIcon(report.category)} {report.category}
+                        {CATEGORY_LABELS[report.category]?.icon || "📌"} {report.categoryLabel}
                       </span>
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-sm ${statusStyle.className}`}>
-                        {statusStyle.icon} {getStatusText(report.status)}
+                        {statusStyle.icon} {statusStyle.label}
                       </span>
                     </div>
 
@@ -366,12 +314,19 @@ export default function MyReports() {
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <span>🆔</span>
-                          <span className="font-mono text-xs">ID: {report.id}</span>
+                          <span className="font-mono text-xs">{report.issueId}</span>
                         </div>
+                        {report.assignedWorkers?.length > 0 && (
+                          <div className="flex items-center gap-2 text-sm text-purple-700">
+                            <span>👷</span>
+                            <span>
+                              Assigned: {report.assignedWorkers.map((w) => w.name).join(", ")}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Resolution Notes (if resolved) */}
-                      {report.status === "resolved" && report.resolutionNotes && (
+                      {["resolved", "closed"].includes(report.status) && report.resolutionNotes && (
                         <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
                           <div className="flex items-start gap-2">
                             <span className="text-green-500">✅</span>
