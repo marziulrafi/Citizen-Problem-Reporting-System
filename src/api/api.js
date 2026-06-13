@@ -13,6 +13,9 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
+    }
     return config;
   },
   (error) => Promise.reject(error)
@@ -23,6 +26,15 @@ api.interceptors.response.use(
   (error) => {
     const url = error.config?.url || "";
     const isAuthMe = url.includes("/auth/me");
+    const payload = error.response?.data;
+    const message =
+      (typeof payload === "object" && payload?.message) ||
+      error.message ||
+      "Request failed";
+
+    error.apiMessage = message;
+    error.apiPayload = payload;
+
     if (
       error.response?.status === 401 &&
       !window.location.pathname.includes("/login") &&
