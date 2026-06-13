@@ -71,7 +71,7 @@ export default function MyReports() {
 
   const filteredReports = myReports.filter(report => {
     if (filter !== "all" && report.status !== filter) return false;
-
+    
     if (search) {
       const searchLower = search.toLowerCase();
       return (
@@ -80,7 +80,7 @@ export default function MyReports() {
         report.location.toLowerCase().includes(searchLower)
       );
     }
-
+    
     return true;
   });
 
@@ -105,7 +105,7 @@ export default function MyReports() {
           <div className="absolute top-10 left-10 w-64 h-64 bg-white rounded-full blur-3xl animate-pulse"></div>
           <div className="absolute bottom-10 right-10 w-80 h-80 bg-yellow-400 rounded-full blur-3xl animate-pulse delay-1000"></div>
         </div>
-
+        
         <div className="relative container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
@@ -125,7 +125,7 @@ export default function MyReports() {
             </Link>
           </div>
         </div>
-
+        
         {/* Curved Bottom */}
         <div className="absolute bottom-0 left-0 right-0">
           <svg viewBox="0 0 1440 60" className="w-full h-12 text-gray-100" preserveAspectRatio="none">
@@ -191,37 +191,41 @@ export default function MyReports() {
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setFilter("all")}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${filter === "all"
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                filter === "all"
                   ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+              }`}
             >
               All Reports ({stats.total})
             </button>
             <button
               onClick={() => setFilter("pending")}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${filter === "pending"
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                filter === "pending"
                   ? "bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+              }`}
             >
               ⏳ Pending ({stats.pending})
             </button>
             <button
               onClick={() => setFilter("in-progress")}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${filter === "in-progress"
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                filter === "in-progress"
                   ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+              }`}
             >
               🔄 In Progress ({stats.inProgress})
             </button>
             <button
               onClick={() => setFilter("resolved")}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${filter === "resolved"
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                filter === "resolved"
                   ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+              }`}
             >
               ✅ Resolved ({stats.resolved})
             </button>
@@ -240,7 +244,7 @@ export default function MyReports() {
             <div className="text-6xl mb-4">📭</div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">No reports found</h3>
             <p className="text-gray-600 mb-6">
-              {search || filter !== "all"
+              {search || filter !== "all" 
                 ? "Try adjusting your search or filters"
                 : "You haven't reported any issues yet"}
             </p>
@@ -269,7 +273,7 @@ export default function MyReports() {
             <div className="text-sm text-gray-500 mb-2">
               Showing {filteredReports.length} of {myReports.length} reports
             </div>
-
+            
             {/* Reports Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredReports.map((report) => {

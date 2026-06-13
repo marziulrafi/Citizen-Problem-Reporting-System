@@ -1,11 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { issueService } from "../api/issueService";
+import { aiService } from "../api/aiService";
 import { zoneService } from "../api/zoneService";
 import { useAuth } from "../context/useAuth";
 import MapPicker from "../components/MapPicker";
-import { detectZoneFromCoordinates, getZoneLabel } from "../constants/dhakaZones";
+import AiBadge from "../components/AiBadge";
+import AiFieldHint from "../components/AiFieldHint";
+import AiSuggestionsPanel from "../components/AiSuggestionsPanel";
+import { getCategoryLabel } from "../constants/issues";
+import { detectZoneFromCoordinates } from "../constants/dhakaZones";
+import { buildMapPinAddress, reverseGeocodeAddress } from "../utils/issueLocation";
+
+const AI_TOGGLE_KEY = "cprs_show_ai_suggestions";
 
 const categories = [
   { value: "road_transportation", label: "Roads" },
@@ -25,6 +33,15 @@ const stepMeta = [
   { title: "Review", icon: "✅" },
 ];
 
+const readAiToggle = () => {
+  try {
+    const v = localStorage.getItem(AI_TOGGLE_KEY);
+    return v === null ? true : v === "true";
+  } catch {
+    return true;
+  }
+};
+
 export default function Report() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -33,6 +50,12 @@ export default function Report() {
   const [photos, setPhotos] = useState([]);
   const [zones, setZones] = useState([]);
   const [locationMode, setLocationMode] = useState("map");
+  const [showAiSuggestions, setShowAiSuggestions] = useState(readAiToggle);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const aiDebounceRef = useRef(null);
+  const geoDebounceRef = useRef(null);
   const [form, setForm] = useState({
     title: "",
     category: "",
@@ -51,10 +74,57 @@ export default function Report() {
   });
 
   useEffect(() => {
-    zoneService.getZones().then((res) => setZones(res?.data?.zones || [])).catch(() => { });
+    zoneService.getZones().then((res) => setZones(res?.data?.zones || [])).catch(() => {});
   }, []);
 
+  const persistAiToggle = (on) => {
+    setShowAiSuggestions(on);
+    try {
+      localStorage.setItem(AI_TOGGLE_KEY, String(on));
+    } catch {
+      /* ignore */
+    }
+    if (!on) {
+      setAiAnalysis(null);
+      setAiError("");
+      setAiLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showAiSuggestions || step !== 2 || form.description.trim().length < 20) {
+      if (!showAiSuggestions) setAiAnalysis(null);
+      return undefined;
+    }
+    if (aiDebounceRef.current) clearTimeout(aiDebounceRef.current);
+    aiDebounceRef.current = setTimeout(async () => {
+      setAiLoading(true);
+      setAiError("");
+      try {
+        const res = await aiService.analyzeIssue(form.title.trim(), form.description.trim());
+        setAiAnalysis(res?.data?.analysis || null);
+      } catch (err) {
+        setAiAnalysis(null);
+        setAiError(err.apiMessage || err.response?.data?.message || "Suggestions unavailable");
+      } finally {
+        setAiLoading(false);
+      }
+    }, 800);
+    return () => {
+      if (aiDebounceRef.current) clearTimeout(aiDebounceRef.current);
+    };
+  }, [showAiSuggestions, step, form.title, form.description]);
+
   const detectedZone = form.latitude != null ? detectZoneFromCoordinates(form.latitude, form.longitude, zones) : null;
+
+  const categoryHint =
+    showAiSuggestions && aiAnalysis?.aiCategory && form.category !== aiAnalysis.aiCategory
+      ? `Suggested: ${getCategoryLabel(aiAnalysis.aiCategory)}`
+      : null;
+  const priorityHint =
+    showAiSuggestions && aiAnalysis?.aiPriority && form.priority !== aiAnalysis.aiPriority
+      ? `Suggested: ${aiAnalysis.aiPriority}`
+      : null;
 
   const setField = (e) => {
     const { name, value, type, checked } = e.target;
@@ -62,7 +132,34 @@ export default function Report() {
   };
 
   const onMapChange = (lat, lng) => {
-    setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+    const zone = detectZoneFromCoordinates(lat, lng, zones);
+    const pinLabel = buildMapPinAddress({
+      latitude: lat,
+      longitude: lng,
+      zoneLabel: zone?.name || "",
+    });
+
+    setForm((prev) => ({
+      ...prev,
+      latitude: lat,
+      longitude: lng,
+      address:
+        locationMode === "text" && prev.address.trim() && !prev.address.startsWith("Map pin")
+          ? prev.address
+          : pinLabel,
+    }));
+
+    if (geoDebounceRef.current) clearTimeout(geoDebounceRef.current);
+    geoDebounceRef.current = setTimeout(async () => {
+      const street = await reverseGeocodeAddress(lat, lng);
+      if (!street) return;
+      setForm((prev) => {
+        if (locationMode === "text" && prev.address.trim() && !prev.address.startsWith("Map pin")) {
+          return prev;
+        }
+        return { ...prev, address: street };
+      });
+    }, 700);
   };
 
   const onPhotoChange = (e) => {
@@ -118,7 +215,18 @@ export default function Report() {
       fd.append("category", form.category);
       fd.append("description", form.description.trim());
       fd.append("priority", form.priority);
-      fd.append("address", form.address.trim());
+      const zoneAtSubmit =
+        form.latitude != null ? detectZoneFromCoordinates(form.latitude, form.longitude, zones) : null;
+      const addressToSubmit =
+        form.address.trim() ||
+        (form.latitude != null
+          ? buildMapPinAddress({
+              latitude: form.latitude,
+              longitude: form.longitude,
+              zoneLabel: zoneAtSubmit?.name || "",
+            })
+          : "");
+      fd.append("address", addressToSubmit);
       fd.append("district", form.district.trim() || "Dhaka");
       fd.append("division", "Dhaka");
       fd.append("upazila", form.upazila.trim());
@@ -138,7 +246,7 @@ export default function Report() {
       toast.success("Issue reported — routed to Dhaka zone after verification");
       navigate("/my-reports");
     } catch (err) {
-      toast.error(err?.response?.data?.message || err.message || "Failed to submit report");
+      toast.error(err.apiMessage || err?.response?.data?.message || err.message || "Failed to submit report");
     } finally {
       setIsSubmitting(false);
     }
@@ -148,10 +256,15 @@ export default function Report() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/20 to-slate-100 py-10 px-4">
       <div className="max-w-5xl mx-auto">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-800 via-green-700 to-teal-800 text-white p-8 mb-6 shadow-xl">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2">Report an Issue</h1>
-          <p className="text-emerald-100">
-            Step {step} of 5 — Dhaka only. Pin your location on the map or type the address.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">Report an Issue</h1>
+              <p className="text-emerald-100">
+                Step {step} of 5 — Dhaka only. Pin your location on the map or type the address.
+              </p>
+            </div>
+            <AiBadge />
+          </div>
         </div>
 
         <div className="card-elevated p-6 md:p-8">
@@ -162,8 +275,9 @@ export default function Report() {
               return (
                 <div key={item.title} className="text-center">
                   <div
-                    className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm font-semibold ${active ? "bg-emerald-600 text-white shadow" : "bg-slate-100 text-slate-500"
-                      }`}
+                    className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm font-semibold ${
+                      active ? "bg-emerald-600 text-white shadow" : "bg-slate-100 text-slate-500"
+                    }`}
                   >
                     {active ? item.icon : n}
                   </div>
@@ -183,25 +297,43 @@ export default function Report() {
                 placeholder="Short title for the problem"
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none"
               />
-              <select
-                name="category"
-                value={form.category}
-                onChange={setField}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="">Select category</option>
-                {categories.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
+                  Category
+                  {showAiSuggestions && <AiBadge />}
+                </label>
+                <select
+                  name="category"
+                  value={form.category}
+                  onChange={setField}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="">Select category</option>
+                  {categories.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                {categoryHint && <AiFieldHint showBadge={false}>{categoryHint}</AiFieldHint>}
+              </div>
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-4">
-              <h2 className="text-xl font-bold text-slate-900">Describe the issue</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-xl font-bold text-slate-900">Describe the issue</h2>
+                <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showAiSuggestions}
+                    onChange={(e) => persistAiToggle(e.target.checked)}
+                    className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  Show AI suggestions
+                </label>
+              </div>
               <textarea
                 name="description"
                 value={form.description}
@@ -210,17 +342,34 @@ export default function Report() {
                 placeholder="What is wrong? How long has it been there? Who is affected?"
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 resize-none focus:ring-2 focus:ring-emerald-500"
               />
-              <select
-                name="priority"
-                value={form.priority}
-                onChange={setField}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="emergency">Emergency</option>
-              </select>
+              {showAiSuggestions && (
+                <AiSuggestionsPanel
+                  analysis={aiAnalysis}
+                  loading={aiLoading}
+                  error={aiError}
+                  compact
+                  onApplyCategory={(cat) => setForm((prev) => ({ ...prev, category: cat }))}
+                  onApplyPriority={(pri) => setForm((prev) => ({ ...prev, priority: pri }))}
+                />
+              )}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
+                  Priority
+                  {showAiSuggestions && <AiBadge />}
+                </label>
+                <select
+                  name="priority"
+                  value={form.priority}
+                  onChange={setField}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="emergency">Emergency</option>
+                </select>
+                {priorityHint && <AiFieldHint showBadge={false}>{priorityHint}</AiFieldHint>}
+              </div>
             </div>
           )}
 
@@ -332,6 +481,15 @@ export default function Report() {
 
           {step === 5 && (
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5 space-y-2 text-sm">
+              {aiAnalysis?.isLikelySpam && (
+                <p className="text-red-700 font-semibold text-xs">⚠️ Possible spam flagged for moderator review</p>
+              )}
+              {aiAnalysis?.aiSummary && (
+                <p className="text-slate-700">
+                  <span className="font-semibold text-slate-900">Official summary: </span>
+                  <em>{aiAnalysis.aiSummary}</em>
+                </p>
+              )}
               <p><strong>Title:</strong> {form.title}</p>
               <p><strong>Category:</strong> {form.category}</p>
               <p><strong>Zone:</strong> {detectedZone?.name || "Will be detected from map pin"}</p>

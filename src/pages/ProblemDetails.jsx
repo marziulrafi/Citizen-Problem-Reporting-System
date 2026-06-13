@@ -4,10 +4,13 @@ import { issueService } from "../api/issueService";
 import { useAuth } from "../context/useAuth";
 import toast from "react-hot-toast";
 import { toAssetUrl } from "../utils/helpers";
+import { formatIssueDisplayAddress } from "../utils/issueLocation";
 import AssignedTeam from "../components/AssignedTeam";
 import IssueComments from "../components/IssueComments";
 import IssueWorkActions from "../components/IssueWorkActions";
 import IssueLocationMap from "../components/IssueLocationMap";
+import AiIssueInsights from "../components/AiIssueInsights";
+import AiModeratorBadges from "../components/AiModeratorBadges";
 
 const STATUS_LABELS = {
   submitted: { label: "Submitted", color: "bg-yellow-100 text-yellow-800 ring-yellow-200", icon: "📋" },
@@ -158,6 +161,7 @@ export default function ProblemDetails() {
   const categoryInfo = CATEGORY_LABELS[problem.category] || { label: problem.category || "Issue", icon: "📌" };
   const mediaList = Array.isArray(problem.media) ? problem.media.filter((m) => m?.url) : [];
   const hasMedia = mediaList.length > 0;
+  const displayAddress = formatIssueDisplayAddress(problem);
   const reportedDate = problem.createdAt ? new Date(problem.createdAt) : null;
   const daysOpen =
     reportedDate != null
@@ -213,6 +217,9 @@ export default function ProblemDetails() {
                       {problem.priority} priority
                     </span>
                   )}
+                </div>
+                <div className="mt-3">
+                  <AiModeratorBadges issue={problem} showSummary={false} />
                 </div>
 
                 <h1 className="text-2xl md:text-4xl font-bold tracking-tight leading-tight mb-3 text-white drop-shadow-sm">
@@ -399,6 +406,12 @@ export default function ProblemDetails() {
               <p className="text-gray-700 leading-relaxed text-[15px] md:text-base whitespace-pre-wrap">
                 {problem.description}
               </p>
+              {problem.aiSummary && (
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Official summary</p>
+                  <p className="text-slate-800 text-sm leading-relaxed italic">{problem.aiSummary}</p>
+                </div>
+              )}
             </article>
 
             <section className="rounded-2xl bg-white overflow-hidden shadow-lg shadow-gray-200/60 ring-1 ring-gray-100">
@@ -410,7 +423,9 @@ export default function ProblemDetails() {
                 </div>
               </div>
               <div className="p-6 md:p-8 bg-gradient-to-b from-slate-50 to-white">
-                <p className="text-gray-900 font-semibold text-base mb-4">{problem.address || "Address not specified"}</p>
+                {displayAddress && (
+                  <p className="text-gray-900 font-semibold text-base mb-4">{displayAddress}</p>
+                )}
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
                   {problem.district && (
                     <>
@@ -550,6 +565,8 @@ export default function ProblemDetails() {
           </div>
 
           <aside className="lg:col-span-4 space-y-5 lg:sticky lg:top-24">
+            <AiIssueInsights issue={problem} />
+
             <AssignedTeam issue={problem} />
 
             <div className="rounded-2xl bg-white p-6 shadow-lg shadow-gray-200/60 ring-1 ring-gray-100">
