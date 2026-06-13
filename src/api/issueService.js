@@ -32,9 +32,7 @@ export const issueService = {
   },
 
   createIssue: async (formData) => {
-    const response = await api.post("/issues", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const response = await api.post("/issues", formData);
     return response.data;
   },
 
@@ -44,9 +42,7 @@ export const issueService = {
   },
 
   updateIssueStatusWithFiles: async (issueId, formData) => {
-    const response = await api.put(`/issues/${issueId}/status`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const response = await api.put(`/issues/${issueId}/status`, formData);
     return response.data;
   },
 
