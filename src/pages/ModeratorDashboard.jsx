@@ -6,8 +6,11 @@ import DashboardShell, { StatCard } from "../components/DashboardShell";
 import { issueService } from "../api/issueService";
 import { adminService } from "../api/adminService";
 import { zoneService } from "../api/zoneService";
-import { getStatusLabel, getCategoryLabel } from "../constants/issues";
+import { getStatusLabel, getCategoryLabel, CATEGORY_OPTIONS } from "../constants/issues";
 import { detectZoneFromCoordinates } from "../constants/dhakaZones";
+import AiModeratorBadges from "../components/AiModeratorBadges";
+import AiIssueInsights from "../components/AiIssueInsights";
+import { formatIssueDisplayAddress } from "../utils/issueLocation";
 
 export default function ModeratorDashboard() {
   const [issues, setIssues] = useState([]);
@@ -24,6 +27,8 @@ export default function ModeratorDashboard() {
   const [selectedAuthority, setSelectedAuthority] = useState("");
   const [zones, setZones] = useState([]);
   const [moderationNote, setModerationNote] = useState("Verified — legitimate civic report");
+  const [overrideCategory, setOverrideCategory] = useState("");
+  const [overridePriority, setOverridePriority] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -60,6 +65,8 @@ export default function ModeratorDashboard() {
   const openVerifyModal = async (issue) => {
     setSelectedIssue(issue);
     setSelectedAuthority("");
+    setOverrideCategory(issue.category || issue.aiCategory || "other");
+    setOverridePriority(issue.aiPriority || issue.priority || "medium");
     setShowVerifyModal(true);
     const zone = getIssueZone(issue);
     try {
@@ -83,6 +90,8 @@ export default function ModeratorDashboard() {
       await issueService.verifyIssue(selectedIssue._id, {
         assignedTo: selectedAuthority,
         moderationNote: moderationNote.trim() || "Verified by moderator",
+        categoryOverride: overrideCategory || undefined,
+        priorityOverride: overridePriority || undefined,
       });
       toast.success("Verified and routed to zone authority");
       setShowVerifyModal(false);
@@ -134,7 +143,7 @@ export default function ModeratorDashboard() {
       loading={loading}
     >
       <div className="mb-8 p-4 rounded-2xl bg-blue-50 border border-blue-100 text-sm text-slate-700">
-        <strong className="text-blue-900">Dhaka workflow:</strong> Check spam → confirm map/address → assign to the{" "}
+        <strong className="text-blue-900">Dhaka workflow:</strong> Review AI spam warnings → confirm map/address → assign to the{" "}
         <strong>zone authority</strong> (1 authority per zone, 3 field teams each). Citizens pin locations on the map for
         automatic zone detection.
       </div>
@@ -172,6 +181,8 @@ export default function ModeratorDashboard() {
                   <span className="badge bg-orange-100 text-orange-800">{getStatusLabel(issue.status)}</span>
                 </div>
 
+                <AiModeratorBadges issue={issue} className="mb-3" />
+
                 <p className="text-sm text-slate-600 mb-3 line-clamp-2">{issue.description}</p>
 
                 <div className="flex flex-wrap gap-2 mb-4 text-xs">
@@ -182,7 +193,7 @@ export default function ModeratorDashboard() {
                       {zone.name}
                     </span>
                   )}
-                  <span className="badge bg-blue-100 text-blue-800">{issue.address || "Dhaka"}</span>
+                  <span className="badge bg-blue-100 text-blue-800">{formatIssueDisplayAddress(issue) || "Dhaka"}</span>
                 </div>
 
                 {issue.address && (
@@ -252,7 +263,37 @@ export default function ModeratorDashboard() {
               </div>
             )}
 
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Moderation note</label>
+            <AiIssueInsights issue={selectedIssue} compact />
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Category (override)</label>
+                <select
+                  value={overrideCategory}
+                  onChange={(e) => setOverrideCategory(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
+                >
+                  {CATEGORY_OPTIONS.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Priority (override)</label>
+                <select
+                  value={overridePriority}
+                  onChange={(e) => setOverridePriority(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
+                >
+                  <option value="emergency">Emergency</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            <label className="block text-sm font-semibold text-slate-700 mb-1 mt-4">Moderation note</label>
             <textarea
               value={moderationNote}
               onChange={(e) => setModerationNote(e.target.value)}
