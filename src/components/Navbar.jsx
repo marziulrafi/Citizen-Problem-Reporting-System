@@ -35,20 +35,18 @@ export default function Navbar() {
           : ROLE_LABELS[user?.role] || "Dashboard";
 
   const linkClass = ({ isActive }) =>
-    `px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
-      isActive
-        ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg"
-        : "text-gray-300 hover:text-white hover:bg-white/10"
+    `px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 ${isActive
+      ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg"
+      : "text-gray-300 hover:text-white hover:bg-white/10"
     }`;
 
   return (
     <>
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
             ? "bg-gradient-to-r from-gray-900/95 to-gray-800/95 backdrop-blur-md shadow-lg"
             : "bg-gradient-to-r from-gray-900 to-gray-800"
-        }`}
+          }`}
       >
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center h-16">
@@ -74,12 +72,7 @@ export default function Navbar() {
                 </NavLink>
               ))}
 
-              {user?.role === "citizen" && (
-                <NavLink to="/my-reports" className={linkClass}>
-                  <span>📊</span>
-                  <span>My Reports</span>
-                </NavLink>
-              )}
+
 
               {user && dashboardPath && (
                 <NavLink to={dashboardPath} className={linkClass}>
@@ -133,9 +126,8 @@ export default function Navbar() {
       </nav>
 
       <div
-        className={`fixed top-16 left-0 right-0 z-40 md:hidden transition-all duration-300 transform ${
-          isMenuOpen ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0 pointer-events-none"
-        }`}
+        className={`fixed top-16 left-0 right-0 z-40 md:hidden transition-all duration-300 transform ${isMenuOpen ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0 pointer-events-none"
+          }`}
       >
         <div className="bg-gradient-to-b from-gray-900 to-gray-800 shadow-xl border-t border-gray-700">
           <div className="container mx-auto px-4 py-4 flex flex-col gap-2">
